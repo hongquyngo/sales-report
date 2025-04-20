@@ -3,10 +3,16 @@ import pandas as pd
 from sqlalchemy import text
 from db import get_db_engine
 
+# ===================
+# Page Config
+# ===================
 st.set_page_config(page_title="🏠 YTD Summary", layout="wide")
 st.title("📊 YTD Business Summary")
-st.markdown("### Tổng quan tình hình kinh doanh từ đầu năm đến nay")
+st.markdown("### Business overview from Jan 1st to today")
 
+# ===================
+# Load Data
+# ===================
 def load_order_data():
     engine = get_db_engine()
     query = """
@@ -25,6 +31,9 @@ def load_kpi_data():
     """
     return pd.read_sql(text(query), engine)
 
+# ===================
+# Cache & Prep
+# ===================
 @st.cache_data(ttl=3600)
 def get_summary_data():
     oc_df = load_order_data()
@@ -33,14 +42,20 @@ def get_summary_data():
 
 oc_df, kpi_df = get_summary_data()
 
-st.sidebar.header("Tuỳ chọn hiển thị")
+# ===================
+# Sidebar Option
+# ===================
+st.sidebar.header("Display Options")
 exclude_internal = st.sidebar.checkbox("🚫 Exclude INTERNAL Revenue (keep GP)", value=True)
 
 if exclude_internal:
-    revenue_df = kpi_df[kpi_df["kpi_type"] != "INTERNAL"]
+    revenue_df = kpi_df[kpi_df["kpi_type"] != "INTERNAL"].copy()
 else:
     revenue_df = kpi_df.copy()
 
+# ===================
+# Main KPI Section
+# ===================
 total_revenue = revenue_df["sales_by_kpi_center_usd"].sum()
 total_gp = kpi_df["gross_profit_by_kpi_center_usd"].sum()
 gp_percent = round((total_gp / total_revenue) * 100, 2) if total_revenue else 0
@@ -52,12 +67,18 @@ col3.metric("📈 Gross Profit %", f"{gp_percent}%")
 
 st.markdown("---")
 
+# ===================
+# Revenue by Month
+# ===================
 monthly_df = revenue_df.groupby("invoice_month")["sales_by_kpi_center_usd"].sum().reset_index()
 monthly_df = monthly_df.sort_values(by="invoice_month")
-st.subheader("📆 Doanh thu theo tháng")
+st.subheader("🗓️ Monthly Revenue")
 st.bar_chart(data=monthly_df, x="invoice_month", y="sales_by_kpi_center_usd")
 
-st.subheader("🧭 Phân tích theo KPI Center")
+# ===================
+# KPI Center Breakdown
+# ===================
+st.subheader("🔎 KPI Center Breakdown")
 kpi_summary = revenue_df.groupby("kpi_center").agg({
     "sales_by_kpi_center_usd": "sum",
     "gross_profit_by_kpi_center_usd": "sum"
@@ -67,6 +88,27 @@ kpi_summary["gp_percent"] = (kpi_summary["gross_profit_by_kpi_center_usd"] / kpi
 st.dataframe(kpi_summary.style.format({
     "sales_by_kpi_center_usd": ",.0f",
     "gross_profit_by_kpi_center_usd": ",.0f",
+    "gp_percent": "{:.2f}%"
+}), use_container_width=True)
+
+# ===================
+# Top 80% Customers by GP
+# ===================
+st.subheader("💼 Top 80% Customers by Gross Profit")
+top_cust_df = oc_df.copy()
+top_cust_df = top_cust_df.groupby("customer").agg({
+    "gross_profit_by_split_usd": "sum",
+    "invoiced_amount_usd": "sum"
+}).reset_index()
+top_cust_df = top_cust_df.sort_values(by="gross_profit_by_split_usd", ascending=False)
+top_cust_df["cumulative_percent"] = 100 * top_cust_df["gross_profit_by_split_usd"].cumsum() / top_cust_df["gross_profit_by_split_usd"].sum()
+top_80_df = top_cust_df[top_cust_df["cumulative_percent"] <= 80]
+
+top_80_df["gp_percent"] = (top_80_df["gross_profit_by_split_usd"] / top_80_df["invoiced_amount_usd"]) * 100
+
+st.dataframe(top_80_df.style.format({
+    "gross_profit_by_split_usd": ",.0f",
+    "invoiced_amount_usd": ",.0f",
     "gp_percent": "{:.2f}%"
 }), use_container_width=True)
 
