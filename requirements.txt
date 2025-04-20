@@ -1,0 +1,8 @@
+streamlit
+pandas
+sqlalchemy
+pymysql
+google-auth
+google-api-python-client
+python-dotenv
+
