@@ -1,68 +1,100 @@
-# app.py
+# 1_🏠_Home_Dashboard.py
 
-# Import thư viện cần thiết
-import streamlit as st                      # Thư viện tạo giao diện web đơn giản
-import pandas as pd                        # Xử lý bảng dữ liệu
-import logging                             # Ghi log để debug hoặc theo dõi trạng thái
+import streamlit as st
+import pandas as pd
+from sqlalchemy import text
+from db import get_db_engine
 
-# Import các hàm xử lý từ các module con
-from db import get_db_engine, get_data_by_type        # Hàm kết nối DB và lấy dữ liệu
-from google_sheets import export_to_google_sheets     # Hàm export dữ liệu lên Google Sheets
+# ===================
+# Config giao diện
+# ===================
+st.set_page_config(page_title="🏠 YTD Summary", layout="wide")
+st.title("📊 YTD Business Summary")
+st.markdown("### Tổng quan tình hình kinh doanh từ đầu năm đến nay")
 
-# Thiết lập hệ thống log, ghi ở mức INFO (hiển thị các bước chính)
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ===================
+# Load dữ liệu từ các view liên quan
+# ===================
+def load_order_data():
+    engine = get_db_engine()
+    query = """
+        SELECT * FROM order_confirmation_full_looker_view
+        WHERE invoiced_date >= DATE_FORMAT(CURDATE(), '%Y-01-01')
+              AND invoiced_date <= CURDATE()
+    """
+    return pd.read_sql(text(query), engine)
 
+def load_kpi_data():
+    engine = get_db_engine()
+    query = """
+        SELECT * FROM sales_report_by_kpi_center_flat_looker_view
+        WHERE inv_date >= DATE_FORMAT(CURDATE(), '%Y-01-01')
+              AND inv_date <= CURDATE()
+    """
+    return pd.read_sql(text(query), engine)
 
-def main():
-    # Cấu hình giao diện trang web
-    st.set_page_config(page_title="POS Data Export", page_icon="📊")
+# ===================
+# Tiền xử lý dữ liệu
+# ===================
+@st.cache_data(ttl=3600)
+def get_summary_data():
+    oc_df = load_order_data()
+    kpi_df = load_kpi_data()
+    return oc_df, kpi_df
 
-    # Tiêu đề chính của ứng dụng
-    st.title("📤 Export POS Data to Google Sheets")
+oc_df, kpi_df = get_summary_data()
 
-    # Dropdown cho người dùng chọn loại dữ liệu muốn export
-    data_type = st.selectbox("Select data type to export:", [
-        "Sales by Salesperson",
-        "Sales by KPI Center",       
-        "Backlog",                  # Đơn hàng chưa giao
-        "Broker Commission"
-    ])
+# ===================
+# Tùy chọn: Exclude INTERNAL Revenue
+# ===================
+st.sidebar.header("Tuỳ chọn hiển thị")
+exclude_internal = st.sidebar.checkbox("🚫 Exclude INTERNAL Revenue (keep GP)", value=True)
 
-    # Cho phép người dùng điều chỉnh số dòng preview dữ liệu trước khi export
-    preview_rows = st.slider("Preview rows:", 5, 100, 20)
+if exclude_internal:
+    revenue_df = kpi_df[kpi_df["kpi_type"] != "INTERNAL"]
+else:
+    revenue_df = kpi_df.copy()
 
-    # Khi người dùng nhấn nút export
-    if st.button("Export to Google Sheets"):
-        try:
-            # Bước 1: Tạo kết nối đến database
-            engine = get_db_engine()
+# ===================
+# KPI Tổng quan
+# ===================
+total_revenue = revenue_df["sales_by_kpi_center_usd"].sum()
+total_gp = kpi_df["gross_profit_by_kpi_center_usd"].sum()
+gp_percent = round((total_gp / total_revenue) * 100, 2) if total_revenue else 0
 
-            # Bước 2: Gọi hàm tương ứng để truy vấn và xử lý dữ liệu theo data_type
-            logger.info(f"📥 Loading data for: {data_type}")
-            df = get_data_by_type(data_type, engine)
+col1, col2, col3 = st.columns(3)
+col1.metric("🧾 Total Revenue (YTD)", f"{total_revenue:,.0f} USD")
+col2.metric("💰 Gross Profit (YTD)", f"{total_gp:,.0f} USD")
+col3.metric("📈 Gross Profit %", f"{gp_percent}%")
 
-            # Bước 3: Kiểm tra nếu không có dữ liệu thì báo người dùng
-            if df is None or df.empty:
-                st.warning("⚠️ No data found.")
-                return
+st.markdown("---")
 
-            # Bước 4: Hiển thị bảng dữ liệu preview
-            st.subheader("📄 Preview Data")
-            st.dataframe(df.head(preview_rows))   # Hiển thị số dòng preview được chọn
+# ===================
+# Revenue theo tháng
+# ===================
+monthly_df = revenue_df.groupby("invoice_month")["sales_by_kpi_center_usd"].sum().reset_index()
+monthly_df = monthly_df.sort_values(by="invoice_month")
+st.subheader("📆 Doanh thu theo tháng")
+st.bar_chart(data=monthly_df, x="invoice_month", y="sales_by_kpi_center_usd")
 
-            # Bước 5: Export lên Google Sheets
-            sheet_name = export_to_google_sheets(df, data_type)
+# ===================
+# Breakdown theo KPI Center
+# ===================
+st.subheader("🧭 Phân tích theo KPI Center")
+kpi_summary = revenue_df.groupby("kpi_center").agg({
+    "sales_by_kpi_center_usd": "sum",
+    "gross_profit_by_kpi_center_usd": "sum"
+}).reset_index()
+kpi_summary["gp_percent"] = (kpi_summary["gross_profit_by_kpi_center_usd"] / kpi_summary["sales_by_kpi_center_usd"]) * 100
 
-            # Bước 6: Thông báo thành công
-            st.success(f"✅ Exported to Google Sheet: `{sheet_name}`")
+st.dataframe(kpi_summary.style.format({
+    "sales_by_kpi_center_usd": ",.0f",
+    "gross_profit_by_kpi_center_usd": ",.0f",
+    "gp_percent": "{:.2f}%"
+}), use_container_width=True)
 
-        except Exception as e:
-            # Nếu có lỗi xảy ra thì ghi log và báo lỗi ra giao diện
-            logger.exception("❌ Export failed:")
-            st.error(f"❌ Export failed: {e}")
-
-
-# Gọi hàm chính khi chạy file này
-if __name__ == "__main__":
-    main()
+# ===================
+# Ghi chú chân trang
+# ===================
+st.markdown("---")
+st.caption("Generated by Prostech BI Dashboard | Powered by Streamlit")
