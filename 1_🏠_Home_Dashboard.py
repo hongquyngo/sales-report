@@ -123,7 +123,14 @@ for kpi_type in sorted(kpi_types):
         "sales_by_kpi_center_usd": "sum",
         "gross_profit_by_kpi_center_usd": "sum"
     }).reset_index()
-    df_summary["gp_percent"] = (df_summary["gross_profit_by_kpi_center_usd"] / df_summary["sales_by_kpi_center_usd"]) * 100
+
+    # Ép kiểu float rõ ràng
+    df_summary["sales_by_kpi_center_usd"] = df_summary["sales_by_kpi_center_usd"].astype(float)
+    df_summary["gross_profit_by_kpi_center_usd"] = df_summary["gross_profit_by_kpi_center_usd"].astype(float)
+    df_summary["gp_percent"] = (
+        df_summary["gross_profit_by_kpi_center_usd"] / df_summary["sales_by_kpi_center_usd"]
+    ) * 100
+
 
     # Hiển thị bảng
     st.dataframe(df_summary.style.format({
