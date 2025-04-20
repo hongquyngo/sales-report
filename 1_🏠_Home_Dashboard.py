@@ -98,24 +98,40 @@ st.altair_chart(chart, use_container_width=True)
 
 
 # ===================
-# KPI Center Breakdown
+# KPI Center Breakdown theo từng loại KPI Type
 # ===================
-st.subheader("🧭 KPI Center Breakdown")
-kpi_summary = revenue_df.groupby("kpi_center").agg({
-    "sales_by_kpi_center_usd": "sum",
-    "gross_profit_by_kpi_center_usd": "sum"
-}).reset_index()
 
-# Convert về dạng float để tránh lỗi hiển thị
-kpi_summary["sales_by_kpi_center_usd"] = kpi_summary["sales_by_kpi_center_usd"].astype(float)
-kpi_summary["gross_profit_by_kpi_center_usd"] = kpi_summary["gross_profit_by_kpi_center_usd"].astype(float)
-kpi_summary["gp_percent"] = (kpi_summary["gross_profit_by_kpi_center_usd"] / kpi_summary["sales_by_kpi_center_usd"]) * 100
+st.subheader("🌐 KPI Center Performance by Type")
 
-st.dataframe(kpi_summary.style.format({
-    "sales_by_kpi_center_usd": "{:,.0f}",
-    "gross_profit_by_kpi_center_usd": "{:,.0f}",
-    "gp_percent": "{:.2f}%"
-}), use_container_width=True)
+# Tách dữ liệu theo KPI Type
+kpi_types = revenue_df["kpi_type"].unique()
+
+for kpi_type in sorted(kpi_types):
+    # Tiêu đề động theo loại
+    if kpi_type == "TERRITORY":
+        st.markdown("### 🗺️ KPI by Territory")
+    elif kpi_type == "VERTICAL":
+        st.markdown("### 🏭 KPI by Vertical Market")
+    elif kpi_type == "INTERNAL":
+        st.markdown("### 🏠 Internal Sales (excluded from revenue but GP kept)")
+    else:
+        st.markdown(f"### 🔍 KPI Type: {kpi_type}")
+
+    # Lọc và tính toán
+    df_filtered = revenue_df[revenue_df["kpi_type"] == kpi_type]
+    df_summary = df_filtered.groupby("kpi_center").agg({
+        "sales_by_kpi_center_usd": "sum",
+        "gross_profit_by_kpi_center_usd": "sum"
+    }).reset_index()
+    df_summary["gp_percent"] = (df_summary["gross_profit_by_kpi_center_usd"] / df_summary["sales_by_kpi_center_usd"]) * 100
+
+    # Hiển thị bảng
+    st.dataframe(df_summary.style.format({
+        "sales_by_kpi_center_usd": ",.0f",
+        "gross_profit_by_kpi_center_usd": ",.0f",
+        "gp_percent": "{:.2f}%"
+    }), use_container_width=True)
+
 
 
 # ===================
