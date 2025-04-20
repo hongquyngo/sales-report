@@ -38,3 +38,5 @@ xlsxwriter         # Advanced Excel formatting (optional)
 # Optional: Performance Utilities
 # =============================
 cachetools         # For caching logic (used in larger Streamlit apps)
+
+altair
