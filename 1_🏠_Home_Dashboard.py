@@ -70,60 +70,60 @@ col3.metric("📈 Gross Profit %", f"{gp_percent}%")
 st.markdown("---")
 
 
-# ===================
-# Revenue vs Gross Profit by Month – Grouped Bar Chart
-# ===================
+# # ===================
+# # Revenue vs Gross Profit by Month – Grouped Bar Chart
+# # ===================
 
-# Đảm bảo thứ tự tháng
-month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+# # Đảm bảo thứ tự tháng
+# month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+#                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-# Tổng hợp dữ liệu theo tháng
-monthly_df = revenue_df.groupby("invoice_month").agg({
-    "sales_by_kpi_center_usd": "sum",
-    "gross_profit_by_kpi_center_usd": "sum"
-}).reset_index()
+# # Tổng hợp dữ liệu theo tháng
+# monthly_df = revenue_df.groupby("invoice_month").agg({
+#     "sales_by_kpi_center_usd": "sum",
+#     "gross_profit_by_kpi_center_usd": "sum"
+# }).reset_index()
 
-monthly_df["invoice_month"] = pd.Categorical(monthly_df["invoice_month"], categories=month_order, ordered=True)
-monthly_df = monthly_df.sort_values("invoice_month")
+# monthly_df["invoice_month"] = pd.Categorical(monthly_df["invoice_month"], categories=month_order, ordered=True)
+# monthly_df = monthly_df.sort_values("invoice_month")
 
-# Đưa về dạng long format
-melted_df = pd.melt(
-    monthly_df,
-    id_vars=["invoice_month"],
-    value_vars=["sales_by_kpi_center_usd", "gross_profit_by_kpi_center_usd"],
-    var_name="Metric",
-    value_name="USD_Value"
-)
+# # Đưa về dạng long format
+# melted_df = pd.melt(
+#     monthly_df,
+#     id_vars=["invoice_month"],
+#     value_vars=["sales_by_kpi_center_usd", "gross_profit_by_kpi_center_usd"],
+#     var_name="Metric",
+#     value_name="USD_Value"
+# )
 
-# Mapping tên rõ ràng
-label_map = {
-    "sales_by_kpi_center_usd": "Revenue (USD)",
-    "gross_profit_by_kpi_center_usd": "Gross Profit (USD)"
-}
-melted_df["Metric"] = melted_df["Metric"].map(label_map)
+# # Mapping tên rõ ràng
+# label_map = {
+#     "sales_by_kpi_center_usd": "Revenue (USD)",
+#     "gross_profit_by_kpi_center_usd": "Gross Profit (USD)"
+# }
+# melted_df["Metric"] = melted_df["Metric"].map(label_map)
 
-# Grouped bar chart
-chart = alt.Chart(melted_df).mark_bar(width=25).encode(
-    x=alt.X("invoice_month:N", title="Invoice Month", sort=month_order),
-    y=alt.Y("USD_Value:Q", title="USD", axis=alt.Axis(format=",.0f")),
-    color=alt.Color("Metric:N", title="Metric"),
-    column=alt.Column("Metric:N", header=alt.Header(labelAngle=0)),
-    tooltip=[
-        alt.Tooltip("invoice_month:N", title="Month"),
-        alt.Tooltip("Metric:N"),
-        alt.Tooltip("USD_Value:Q", title="Value", format=",.0f")
-    ]
-).properties(
-    title="📊 Monthly Revenue vs Gross Profit (Grouped)",
-    width=100,
-    height=400
-).configure_title(
-    fontSize=20,
-    anchor="start"
-)
+# # Grouped bar chart
+# chart = alt.Chart(melted_df).mark_bar(width=25).encode(
+#     x=alt.X("invoice_month:N", title="Invoice Month", sort=month_order),
+#     y=alt.Y("USD_Value:Q", title="USD", axis=alt.Axis(format=",.0f")),
+#     color=alt.Color("Metric:N", title="Metric"),
+#     column=alt.Column("Metric:N", header=alt.Header(labelAngle=0)),
+#     tooltip=[
+#         alt.Tooltip("invoice_month:N", title="Month"),
+#         alt.Tooltip("Metric:N"),
+#         alt.Tooltip("USD_Value:Q", title="Value", format=",.0f")
+#     ]
+# ).properties(
+#     title="📊 Monthly Revenue vs Gross Profit (Grouped)",
+#     width=100,
+#     height=400
+# ).configure_title(
+#     fontSize=20,
+#     anchor="start"
+# )
 
-st.altair_chart(chart, use_container_width=True)
+# st.altair_chart(chart, use_container_width=True)
 
 
 # ===================
