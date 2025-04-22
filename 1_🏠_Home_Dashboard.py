@@ -38,7 +38,7 @@ def load_kpi_data():
 # ===================
 @st.cache_data(ttl=3600)
 def get_summary_data():
-    oc_df = load_order_data()
+    oc_df = load_order_confirmation_data()
     kpi_df = load_kpi_data()
     return oc_df, kpi_df
 
