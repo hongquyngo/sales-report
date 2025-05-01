@@ -233,6 +233,8 @@ cumulative_chart = alt.Chart(cumulative_melted).mark_line(point=True).encode(
 
 st.altair_chart(cumulative_chart, use_container_width=True)
 
+
+
 # ===================
 # Pie Charts by KPI Center Groups (Adjusted by Tick/Untick)
 # ===================
@@ -395,6 +397,158 @@ territory_combined_chart = alt.layer(
 )
 
 st.altair_chart(territory_combined_chart, use_container_width=True)
+
+
+# ===================
+# Pie Charts - KPI by Vertical Market (Revenue + Gross Profit)
+# ===================
+
+st.subheader("🏭 KPI by Vertical Market: Revenue & Gross Profit")
+
+# ---------- Revenue Data ----------
+vertical_df = kpi_df[kpi_df["kpi_type"] == "VERTICAL"]
+vertical_sum = vertical_df["sales_by_kpi_center_usd"].sum()
+
+unmapped_revenue = max(total_revenue - vertical_sum, 0)
+
+vertical_grouped = vertical_df.groupby("kpi_center")["sales_by_kpi_center_usd"].sum()
+vertical_combined = pd.concat([
+    vertical_grouped,
+    pd.Series({"Other": unmapped_revenue})
+]).reset_index()
+vertical_combined.columns = ["Center", "Revenue"]
+vertical_combined["Percent"] = (vertical_combined["Revenue"] / vertical_combined["Revenue"].sum()) * 100
+
+# ---------- Gross Profit Data ----------
+vertical_gp_df = kpi_df[kpi_df["kpi_type"] == "VERTICAL"]
+vertical_gp_sum = vertical_gp_df["gross_profit_by_kpi_center_usd"].sum()
+
+total_gp_invoice = inv_df["invoiced_gross_profit_usd"].sum()
+unmapped_gp = max(total_gp_invoice - vertical_gp_sum, 0)
+
+vertical_gp_grouped = vertical_gp_df.groupby("kpi_center")["gross_profit_by_kpi_center_usd"].sum()
+vertical_gp_combined = pd.concat([
+    vertical_gp_grouped,
+    pd.Series({"Other": unmapped_gp})
+]).reset_index()
+vertical_gp_combined.columns = ["Center", "GrossProfit"]
+vertical_gp_combined["Percent"] = (vertical_gp_combined["GrossProfit"] / vertical_gp_combined["GrossProfit"].sum()) * 100
+
+# ---------- Revenue Pie Chart ----------
+revenue_pie_chart_vertical = alt.Chart(vertical_combined).mark_arc().encode(
+    theta=alt.Theta(field="Revenue", type="quantitative"),
+    color=alt.Color(field="Center", type="nominal"),
+    tooltip=[
+        alt.Tooltip("Center:N", title="Vertical"),
+        alt.Tooltip("Revenue:Q", title="Revenue (USD)", format=",.0f"),
+        alt.Tooltip("Percent:Q", title="Percentage", format=".2f")
+    ]
+).properties(
+    width=300,
+    height=300,
+    title="🏭 Revenue Breakdown by Vertical Market"
+)
+
+# ---------- Gross Profit Pie Chart ----------
+gp_pie_chart_vertical = alt.Chart(vertical_gp_combined).mark_arc().encode(
+    theta=alt.Theta(field="GrossProfit", type="quantitative"),
+    color=alt.Color(field="Center", type="nominal"),
+    tooltip=[
+        alt.Tooltip("Center:N", title="Vertical"),
+        alt.Tooltip("GrossProfit:Q", title="Gross Profit (USD)", format=",.0f"),
+        alt.Tooltip("Percent:Q", title="Percentage", format=".2f")
+    ]
+).properties(
+    width=300,
+    height=300,
+    title="🏭 Gross Profit Breakdown by Vertical Market"
+)
+
+# ---------- Display Side by Side ----------
+st.altair_chart(revenue_pie_chart_vertical | gp_pie_chart_vertical, use_container_width=True)
+
+# ===================
+# Bar + Line Chart - KPI by Vertical Market (Revenue, GP, GP%)
+# ===================
+
+st.subheader("🏭 KPI by Vertical Market: Revenue, Gross Profit & GP%")
+
+# ---------- Prepare Combined Data ----------
+# Merge revenue and GP into one dataframe
+vertical_combined_bars = pd.merge(
+    vertical_combined,
+    vertical_gp_combined,
+    on="Center"
+)
+
+# Calculate GP%
+vertical_combined_bars["GP_percent"] = vertical_combined_bars.apply(
+    lambda row: (row["GrossProfit"] / row["Revenue"] * 100) if row["Revenue"] else 0,
+    axis=1
+)
+
+# ---------- Melt for Bar Chart ----------
+vertical_melted = pd.melt(
+    vertical_combined_bars,
+    id_vars=["Center"],
+    value_vars=["Revenue", "GrossProfit"],
+    var_name="Metric",
+    value_name="Amount"
+)
+
+# Explicit metric order
+metric_order = ["Revenue", "GrossProfit"]
+vertical_melted["Metric"] = pd.Categorical(vertical_melted["Metric"], categories=metric_order, ordered=True)
+
+# ---------- Bar Chart ----------
+color_scale = alt.Scale(
+    domain=["Revenue", "GrossProfit"],
+    range=["#FFA500", "#1f77b4"]  # orange, blue
+)
+
+bar_chart = alt.Chart(vertical_melted).mark_bar().encode(
+    x=alt.X("Center:N", title="Vertical Market", sort="-y"),
+    y=alt.Y("Amount:Q", title="Amount (USD)", axis=alt.Axis(format="~s")),
+    color=alt.Color("Metric:N", scale=color_scale, title="Metric"),
+    xOffset=alt.XOffset("Metric:N", sort=metric_order),
+    tooltip=[
+        alt.Tooltip("Center:N", title="Vertical"),
+        alt.Tooltip("Metric:N", title="Metric"),
+        alt.Tooltip("Amount:Q", title="Amount", format=",.0f")
+    ]
+)
+
+# ---------- Line Chart (GP%) ----------
+line_chart = alt.Chart(vertical_combined_bars).mark_line(
+    point=True,
+    color="#800080"  # purple
+).encode(
+    x=alt.X("Center:N", sort="-y"),
+    y=alt.Y(
+        "GP_percent:Q",
+        title="Gross Profit %",
+        axis=alt.Axis(format=".1f", titleColor="#800080")
+    ),
+    tooltip=[
+        alt.Tooltip("Center:N", title="Vertical"),
+        alt.Tooltip("GP_percent:Q", title="Gross Profit %", format=".2f")
+    ]
+)
+
+# ---------- Combine ----------
+combined_chart = alt.layer(
+    bar_chart,
+    line_chart
+).resolve_scale(
+    y='independent'
+).properties(
+    width=700,
+    height=400,
+    title="🏭 Vertical Market Revenue, Gross Profit, and GP%"
+)
+
+# ---------- Display ----------
+st.altair_chart(combined_chart, use_container_width=True)
 
 
 # ===================
