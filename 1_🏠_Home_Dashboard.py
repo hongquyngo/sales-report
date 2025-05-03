@@ -29,8 +29,8 @@ def load_kpi_center_data():
     query = """
         SELECT *
         FROM prostechvn.sales_report_by_kpi_center_flat_looker_view
-        WHERE inv_date >= DATE_FORMAT(CURDATE(), '%Y-01-01')
-          AND inv_date <= CURDATE();
+        WHERE DATE(inv_date) >= DATE_FORMAT(CURDATE(), '%Y-01-01')
+          AND inv_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-%d'), INTERVAL 1 DAY);
     """
     return pd.read_sql(text(query), engine)
 
