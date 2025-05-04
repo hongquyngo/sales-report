@@ -71,7 +71,7 @@ def build_monthly_revenue_gp_chart(monthly_summary_df: pd.DataFrame, exclude_int
     return combined_chart
 
 
-def build_cumulative_revenue_gp_chart(monthly_summary_df: pd.DataFrame):
+def build_cumulative_revenue_gp_chart(monthly_summary_df: pd.DataFrame,  exclude_internal: bool):
     """
     Build cumulative revenue and gross profit line chart.
 
@@ -113,13 +113,13 @@ def build_cumulative_revenue_gp_chart(monthly_summary_df: pd.DataFrame):
     ).properties(
         width=CHART_WIDTH,
         height=CHART_HEIGHT,
-        title="📈 Cumulative Revenue and GP Over Time"
+        title=f"📈 Cumulative Revenue and GP Over Time ({'Excl. Internal' if exclude_internal else 'Incl. Internal'})"
     )
 
     return cumulative_chart
 
 
-def build_dimension_pie_charts(summary_df: pd.DataFrame, dimension_name: str):
+def build_dimension_pie_charts(summary_df: pd.DataFrame, exclude_internal: bool, dimension_name: str):
     """
     Build side-by-side pie charts for Revenue and Gross Profit by a given dimension.
 
@@ -155,13 +155,13 @@ def build_dimension_pie_charts(summary_df: pd.DataFrame, dimension_name: str):
     ).properties(
         width=PIE_CHART_WIDTH,
         height=PIE_CHART_HEIGHT,
-        title=f"🌍 Gross Profit Breakdown by {dimension_name}"
+        title=f"🌍 Gross Profit Breakdown by {dimension_name}({'Excl. Internal' if exclude_internal else 'Incl. Internal'})"
     )
 
     return revenue_pie_chart | gp_pie_chart
 
 
-def build_dimension_bar_chart(summary_df: pd.DataFrame, dimension_name: str):
+def build_dimension_bar_chart(summary_df: pd.DataFrame, exclude_internal: bool, dimension_name: str):
     """
     Build combined bar + line chart for Revenue, Gross Profit, and GP% by dimension.
 
@@ -213,12 +213,12 @@ def build_dimension_bar_chart(summary_df: pd.DataFrame, dimension_name: str):
     return alt.layer(bar_chart, line_chart).resolve_scale(y='independent').properties(
         width=CHART_WIDTH,
         height=CHART_HEIGHT,
-        title=f"📊 Revenue, Gross Profit, and GP% by {dimension_name}"
+        title=f"📊 Revenue, Gross Profit, and GP% by {dimension_name} ({'Excl. Internal' if exclude_internal else 'Incl. Internal'})"
     )
 
 
 
-def build_top_customers_gp_chart(top_customers_df: pd.DataFrame):
+def build_top_customers_gp_chart(top_customers_df: pd.DataFrame, exclude_internal: bool):
     """
     Build combined bar + line chart for top customers by gross profit.
 
@@ -260,7 +260,7 @@ def build_top_customers_gp_chart(top_customers_df: pd.DataFrame):
     ).resolve_scale(
         y='independent'
     ).properties(
-        title="🏆 Top 80% Customers by Gross Profit (Bar + Cumulative Line)"
+        title=f"🏆 Top 80% Customers by Gross Profit (Bar + Cumulative Line) ({'Excl. Internal' if exclude_internal else 'Incl. Internal'})"
     )
 
     return combined_chart

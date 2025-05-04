@@ -26,7 +26,7 @@ inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df = load_data()
 
 # ==================== Overview Section ====================
 st.markdown("---")
-st.markdown("### Overview of Year-to-Date Business Performance")
+st.markdown(f"### Overview of Year-to-Date Business Performance ({'Excl. Internal' if exclude_internal else 'Incl. Internal'})")
 
 kpis = calculate_overview_metrics(
     inv_df,
@@ -62,9 +62,8 @@ st.altair_chart(monthly_chart, use_container_width=True)
 
 # ==================== Cumulative Revenue & GP Chart ====================
 st.markdown("---")
-st.subheader("📈 Cumulative Revenue and GP Over Time")
 
-cumulative_chart = build_cumulative_revenue_gp_chart(monthly_summary)
+cumulative_chart = build_cumulative_revenue_gp_chart(monthly_summary, exclude_internal)
 st.altair_chart(cumulative_chart, use_container_width=True)
 
 # ==================== Territory KPI Section ====================
@@ -78,10 +77,10 @@ territory_summary = prepare_dimension_summary_data(
     exclude_internal=exclude_internal
 )
 
-territory_pie_charts = build_dimension_pie_charts(territory_summary, dimension_name="Territory")
+territory_pie_charts = build_dimension_pie_charts(territory_summary,exclude_internal, dimension_name="Territory")
 st.altair_chart(territory_pie_charts, use_container_width=True)
 
-territory_bar_chart = build_dimension_bar_chart(territory_summary, dimension_name="Territory")
+territory_bar_chart = build_dimension_bar_chart(territory_summary, exclude_internal, dimension_name="Territory")
 st.altair_chart(territory_bar_chart, use_container_width=True)
 
 # ==================== Vertical KPI Section ====================
@@ -95,10 +94,10 @@ vertical_summary = prepare_dimension_summary_data(
     exclude_internal=exclude_internal
 )
 
-vertical_pie_charts = build_dimension_pie_charts(vertical_summary, dimension_name="Vertical")
+vertical_pie_charts = build_dimension_pie_charts(vertical_summary,exclude_internal, dimension_name="Vertical")
 st.altair_chart(vertical_pie_charts, use_container_width=True)
 
-vertical_bar_chart = build_dimension_bar_chart(vertical_summary, dimension_name="Vertical")
+vertical_bar_chart = build_dimension_bar_chart(vertical_summary,exclude_internal, dimension_name="Vertical")
 st.altair_chart(vertical_bar_chart, use_container_width=True)
 
 
@@ -110,7 +109,7 @@ st.subheader("🏆 Top 80% Customers by Gross Profit")
 top_customers_df = prepare_top_customers_by_gp(inv_df, top_percent=0.8)
 
 # Build chart
-top_customers_chart = build_top_customers_gp_chart(top_customers_df)
+top_customers_chart = build_top_customers_gp_chart(top_customers_df, exclude_internal)
 st.altair_chart(top_customers_chart, use_container_width=True)
 
 
