@@ -4,75 +4,104 @@ from sqlalchemy import text
 from db import get_db_engine
 import altair as alt
 
-# ===================
-# Page Config
-# ===================
+
+from constants import COLORS, MONTH_ORDER, METRIC_LABELS, CHART_WIDTH, CHART_HEIGHT,PIE_CHART_WIDTH, PIE_CHART_HEIGHT, METRIC_ORDER 
+
+
 st.set_page_config(page_title="🏠 YTD Summary", layout="wide")
 st.title("📊 YTD Business Summary")
-st.markdown("### Overview of year-to-date business performance")
 
-# ===================
-# Load Data Functions
-# ===================
-def load_invoiced_sales_data():
+@st.cache_data(ttl=3600)
+def load_data():
     engine = get_db_engine()
-    query = """
+
+    inv_query = """
         SELECT *
         FROM prostechvn.sales_invoice_full_looker_view
         WHERE DATE(inv_date) >= DATE_FORMAT(CURDATE(), '%Y-01-01')
           AND inv_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-%d'), INTERVAL 1 DAY);
     """
-    return pd.read_sql(text(query), engine)
 
-def load_kpi_center_data():
-    engine = get_db_engine()
-    query = """
+    inv_by_kpi_center_query = """
         SELECT *
         FROM prostechvn.sales_report_by_kpi_center_flat_looker_view
         WHERE DATE(inv_date) >= DATE_FORMAT(CURDATE(), '%Y-01-01')
           AND inv_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-%d'), INTERVAL 1 DAY);
     """
-    return pd.read_sql(text(query), engine)
 
-# ===================
-# Cache & Prep
-# ===================
-@st.cache_data(ttl=3600)
-def get_summary_data():
-    inv_df = load_invoiced_sales_data()
-    kpi_df = load_kpi_center_data()
-    return inv_df, kpi_df
+    backlog_query = """
+        SELECT *
+        FROM prostechvn.order_confirmation_full_looker_view
+        WHERE IFNULL(total_invoiced_selling_quantity, 0) < selling_quantity;
+    """
 
-inv_df, kpi_df = get_summary_data()
+    backlog_by_kpi_center_query = """
+        SELECT *
+        FROM prostechvn.backlog_by_kpi_center_flat_looker_view
+        WHERE IFNULL(total_invoiced_selling_quantity, 0) < selling_quantity;
+    """
 
-# ===================
+    inv_df = pd.read_sql(text(inv_query), engine)
+    inv_by_kpi_center_df = pd.read_sql(text(inv_by_kpi_center_query), engine)
+    backlog_df = pd.read_sql(text(backlog_query), engine)
+    backlog_by_kpi_center_df = pd.read_sql(text(backlog_by_kpi_center_query), engine)
+
+    return inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df
+
+inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df = load_data()
+
 # Sidebar Option
-# ===================
 st.sidebar.header("Display Options")
 exclude_internal = st.sidebar.checkbox("🚫 Exclude INTERNAL Revenue (keep GP)", value=True)
 
-# Always calculate total revenue from invoices
-total_revenue = inv_df["calculated_invoiced_amount_usd"].sum()
+# Revenue & GP (YTD)
+total_revenue = inv_df['calculated_invoiced_amount_usd'].sum()
+total_gp = inv_df['invoiced_gross_profit_usd'].sum()
 
-# If checkbox ticked, subtract INTERNAL revenue (from KPI data)
+total_customers = inv_df['customer_id'].nunique()
+total_invoices = inv_df['si_id'].nunique()
+total_sales_orders_invoiced = inv_df['oc_number'].nunique()
+
+# Outstanding (Partial OC only)
+outstanding_revenue = backlog_df['outstanding_amount_usd'].sum()
+outstanding_gp = backlog_df['outstanding_gross_profit_usd'].sum()
+
+
+# Adjust if internal excluded
 if exclude_internal:
-    internal_revenue = kpi_df[kpi_df["kpi_type"] == "INTERNAL"]["sales_by_kpi_center_usd"].sum()
-    adjusted_revenue = total_revenue - internal_revenue
-    display_revenue = max(adjusted_revenue, 0)  # ensure non-negative
+    internal_revenue = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "INTERNAL"]["sales_by_kpi_center_usd"].sum()
+    display_revenue = max(total_revenue - internal_revenue, 0)
+
+    internal_outstanding = backlog_by_kpi_center_df[backlog_by_kpi_center_df["kpi_type"] == "INTERNAL"]["backlog_by_kpi_center_usd"].sum()
+    display_outstanding = max(outstanding_revenue - internal_outstanding, 0)
 else:
     display_revenue = total_revenue
+    display_outstanding = outstanding_revenue
 
-# Calculate gross profit from invoice data
-total_gp = inv_df["invoiced_gross_profit_usd"].sum()
 gp_percent = round((total_gp / display_revenue) * 100, 2) if display_revenue else 0
+outstanding_gp_percent = round((outstanding_gp / display_outstanding) * 100, 2) if display_outstanding else 0
 
-# ===================
-# Main KPI Section
-# ===================
-col1, col2, col3 = st.columns(3)
-col1.metric("🧾 Total Revenue (YTD)", f"{display_revenue:,.0f} USD")
-col2.metric("💰 Gross Profit (YTD)", f"{total_gp:,.0f} USD")
-col3.metric("📈 Gross Profit %", f"{gp_percent}%")
+# ================= ROW 1 =================
+st.markdown("### Overview of year-to-date business performance")
+st.markdown("---")
+
+# ================= ROW 2 =================
+row2_col1, row2_col2, row2_col3 = st.columns(3)
+row2_col1.metric("👥 Total Customers (YTD)", f"{total_customers}")
+row2_col2.metric("🧾 Total Invoices (YTD)", f"{total_invoices}")
+row2_col3.metric("📦 Total Sales Orders Invoiced (YTD)", f"{total_sales_orders_invoiced}")
+
+# ================= ROW 3 =================
+row3_col1, row3_col2, row3_col3 = st.columns(3)
+row3_col1.metric("📄 Total Revenue (YTD)", f"{display_revenue:,.0f} USD")
+row3_col2.metric("💰 Gross Profit (YTD)", f"{total_gp:,.0f} USD")
+row3_col3.metric("📈 Gross Profit %", f"{gp_percent}%")
+
+# ================= ROW 4 =================
+row4_col1, row4_col2, row4_col3 = st.columns(3)
+row4_col1.metric("⏳ Outstanding Revenue (YTD)", f"{display_outstanding:,.0f} USD")
+row4_col2.metric("⏳ Outstanding Gross Profit (YTD)", f"{outstanding_gp:,.0f} USD")
+row4_col3.metric("⏳ Outstanding GP % (YTD)", f"{outstanding_gp_percent}%")
 
 st.markdown("---")
 
@@ -81,8 +110,7 @@ st.markdown("---")
 # ===================
 
 # Month order
-month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+month_order = MONTH_ORDER
 
 # Prepare monthly summary from invoices
 inv_df["invoice_month"] = pd.to_datetime(inv_df["inv_date"]).dt.strftime("%b")
@@ -92,7 +120,7 @@ monthly_summary = inv_df.groupby("invoice_month").agg({
 }).reindex(month_order).fillna(0).reset_index()
 
 # Prepare INTERNAL revenue monthly
-internal_monthly = kpi_df[kpi_df["kpi_type"] == "INTERNAL"].groupby("invoice_month").agg({
+internal_monthly = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "INTERNAL"].groupby("invoice_month").agg({
     "sales_by_kpi_center_usd": "sum"
 }).reindex(month_order).fillna(0).reset_index()
 
@@ -119,14 +147,11 @@ monthly_melted = pd.melt(
 )
 
 # Rename metrics for display
-metric_labels = {
-    "adjusted_revenue_usd": "Revenue (USD)",
-    "invoiced_gross_profit_usd": "Gross Profit (USD)"
-}
-monthly_melted["Metric"] = monthly_melted["Metric"].map(metric_labels)
+
+monthly_melted["Metric"] = monthly_melted["Metric"].map(METRIC_LABELS)
 
 # Explicitly set metric order
-metric_order = ["Revenue (USD)", "Gross Profit (USD)"]
+metric_order = METRIC_ORDER 
 monthly_melted["Metric"] = pd.Categorical(
     monthly_melted["Metric"],
     categories=metric_order,
@@ -136,7 +161,7 @@ monthly_melted["Metric"] = pd.Categorical(
 # Custom color mapping
 color_scale = alt.Scale(
     domain=["Revenue (USD)", "Gross Profit (USD)"],
-    range=["#FFA500", "#1f77b4"]  # orange, blue
+    range=[COLORS["revenue"], COLORS["gross_profit"]]  # orange, blue
 )
 
 # Bar chart
@@ -177,12 +202,13 @@ combined_chart = alt.layer(
 ).resolve_scale(
     y='independent'
 ).properties(
-    width=700,
-    height=400,
+    width=CHART_WIDTH,
+    height=CHART_HEIGHT,
     title="📅 Monthly Revenue, Gross Profit (Side by Side), and Gross Profit %"
 )
 
 st.altair_chart(combined_chart, use_container_width=True)
+
 
 
 # ===================
@@ -212,7 +238,7 @@ cumulative_melted["Metric"] = cumulative_melted["Metric"].map(cumulative_labels)
 # Custom color mapping
 cumulative_color_scale = alt.Scale(
     domain=["Cumulative Revenue (USD)", "Cumulative GP (USD)"],
-    range=["#FFA500", "#1f77b4"]  # orange, blue
+    range=[COLORS["revenue"], COLORS["gross_profit"]]  # orange, blue
 )
 
 # Build cumulative line chart
@@ -226,14 +252,14 @@ cumulative_chart = alt.Chart(cumulative_melted).mark_line(point=True).encode(
         alt.Tooltip("CumulativeAmount:Q", title="Cumulative Amount", format=",.0f")
     ]
 ).properties(
-    width=700,
-    height=400,
+    width=CHART_WIDTH,
+    height=CHART_HEIGHT,
     title="📈 Cumulative Revenue and GP Over Time"
 )
 
 st.altair_chart(cumulative_chart, use_container_width=True)
 
-
+st.markdown("---")
 
 # ===================
 # Pie Charts by KPI Center Groups (Adjusted by Tick/Untick)
@@ -242,7 +268,7 @@ st.markdown("### 🥧 Revenue Breakdown by KPI Center")
 
 # Base total revenue (after tick/untick)
 total_invoice_revenue = inv_df["calculated_invoiced_amount_usd"].sum()
-internal_sales = kpi_df[kpi_df["kpi_type"] == "INTERNAL"]["sales_by_kpi_center_usd"].sum()
+internal_sales = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "INTERNAL"]["sales_by_kpi_center_usd"].sum()
 
 if exclude_internal:
     total_revenue = total_invoice_revenue - internal_sales
@@ -261,7 +287,7 @@ else:
 st.subheader("🌍 KPI by Territory: Revenue & Gross Profit")
 
 # ---------- Revenue Data ----------
-territory_df = kpi_df[kpi_df["kpi_type"] == "TERRITORY"]
+territory_df = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "TERRITORY"]
 territory_sum = territory_df["sales_by_kpi_center_usd"].sum()
 unmapped_revenue = max(total_revenue - territory_sum, 0)
 
@@ -273,7 +299,7 @@ territory_combined.columns = ["Center", "Revenue"]
 territory_combined["Percent"] = (territory_combined["Revenue"] / territory_combined["Revenue"].sum()) * 100
 
 # ---------- Gross Profit Data ----------
-territory_gp_df = kpi_df[kpi_df["kpi_type"] == "TERRITORY"]
+territory_gp_df = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "TERRITORY"]
 territory_gp_sum = territory_gp_df["gross_profit_by_kpi_center_usd"].sum()
 total_gp_invoice = inv_df["invoiced_gross_profit_usd"].sum()
 unmapped_gp = max(total_gp_invoice - territory_gp_sum, 0)
@@ -295,8 +321,8 @@ revenue_pie_chart = alt.Chart(territory_combined).mark_arc().encode(
         alt.Tooltip("Percent:Q", title="Percentage", format=".2f")
     ]
 ).properties(
-    width=300,
-    height=300,
+    width=PIE_CHART_WIDTH,
+    height=PIE_CHART_HEIGHT,
     title="🌍 Revenue Breakdown by Territory"
 )
 
@@ -351,7 +377,7 @@ metric_order = ["Revenue", "GrossProfit"]
 # Custom color mapping
 color_scale = alt.Scale(
     domain=["Revenue", "GrossProfit"],
-    range=["#FFA500", "#1f77b4"]  # orange, blue
+    range=[COLORS["revenue"], COLORS["gross_profit"]]  # orange, blue
 )
 
 # Bar chart
@@ -391,13 +417,13 @@ territory_combined_chart = alt.layer(
 ).resolve_scale(
     y='independent'
 ).properties(
-    width=700,
-    height=400,
+    width=CHART_WIDTH,
+    height=CHART_HEIGHT,
     title="📊 Revenue, Gross Profit, and GP % by Territory"
 )
 
 st.altair_chart(territory_combined_chart, use_container_width=True)
-
+st.markdown("---")
 
 # ===================
 # Pie Charts - KPI by Vertical Market (Revenue + Gross Profit)
@@ -406,7 +432,7 @@ st.altair_chart(territory_combined_chart, use_container_width=True)
 st.subheader("🏭 KPI by Vertical Market: Revenue & Gross Profit")
 
 # ---------- Revenue Data ----------
-vertical_df = kpi_df[kpi_df["kpi_type"] == "VERTICAL"]
+vertical_df = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "VERTICAL"]
 vertical_sum = vertical_df["sales_by_kpi_center_usd"].sum()
 
 unmapped_revenue = max(total_revenue - vertical_sum, 0)
@@ -420,7 +446,7 @@ vertical_combined.columns = ["Center", "Revenue"]
 vertical_combined["Percent"] = (vertical_combined["Revenue"] / vertical_combined["Revenue"].sum()) * 100
 
 # ---------- Gross Profit Data ----------
-vertical_gp_df = kpi_df[kpi_df["kpi_type"] == "VERTICAL"]
+vertical_gp_df = inv_by_kpi_center_df[inv_by_kpi_center_df["kpi_type"] == "VERTICAL"]
 vertical_gp_sum = vertical_gp_df["gross_profit_by_kpi_center_usd"].sum()
 
 total_gp_invoice = inv_df["invoiced_gross_profit_usd"].sum()
@@ -503,7 +529,7 @@ vertical_melted["Metric"] = pd.Categorical(vertical_melted["Metric"], categories
 # ---------- Bar Chart ----------
 color_scale = alt.Scale(
     domain=["Revenue", "GrossProfit"],
-    range=["#FFA500", "#1f77b4"]  # orange, blue
+    range=[COLORS["revenue"], COLORS["gross_profit"]] # orange, blue
 )
 
 bar_chart = alt.Chart(vertical_melted).mark_bar().encode(
@@ -542,14 +568,14 @@ combined_chart = alt.layer(
 ).resolve_scale(
     y='independent'
 ).properties(
-    width=700,
-    height=400,
+    width=CHART_WIDTH,
+    height=CHART_HEIGHT,
     title="🏭 Vertical Market Revenue, Gross Profit, and GP%"
 )
 
 # ---------- Display ----------
 st.altair_chart(combined_chart, use_container_width=True)
-
+st.markdown("---")
 
 # ===================
 # Bar Chart - Top 80% Customers by Gross Profit
@@ -589,8 +615,8 @@ customer_bar_chart = alt.Chart(top_80_customers).mark_bar().encode(
         alt.Tooltip("GP_Percent:Q", title="GP %", format=".2f")
     ]
 ).properties(
-    width=700,
-    height=400,
+    width=CHART_WIDTH,
+    height=CHART_HEIGHT,
     title="🏆 Top 80% Customers by Gross Profit"
 )
 
@@ -618,8 +644,6 @@ combined_customer_chart = alt.layer(
 )
 
 st.altair_chart(combined_customer_chart, use_container_width=True)
-# ===================
-# Footer
-# ===================
+
 st.markdown("---")
 st.caption("Generated by Prostech BI Dashboard | Powered by Prostech AI")
