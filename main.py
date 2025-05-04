@@ -3,12 +3,15 @@ from data_loader import load_data
 from data_processing import (
     calculate_overview_metrics,
     prepare_monthly_summary_data,
-    prepare_dimension_summary_data
+    prepare_dimension_summary_data,
+    prepare_top_customers_by_gp
 )
 from chart_builder import (
     build_monthly_revenue_gp_chart,
+    build_cumulative_revenue_gp_chart,
     build_dimension_pie_charts,
-    build_dimension_bar_chart
+    build_dimension_bar_chart,
+    build_top_customers_gp_chart
 )
 
 st.set_page_config(page_title="🏠 YTD Summary", layout="wide")
@@ -22,8 +25,8 @@ exclude_internal = st.sidebar.checkbox("🚫 Exclude INTERNAL Revenue (keep GP)"
 inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df = load_data()
 
 # ==================== Overview Section ====================
-st.markdown("### Overview of Year-to-Date Business Performance")
 st.markdown("---")
+st.markdown("### Overview of Year-to-Date Business Performance")
 
 kpis = calculate_overview_metrics(
     inv_df,
@@ -48,13 +51,21 @@ row7.metric("⏳ Outstanding Revenue (YTD)", f"{kpis['display_outstanding']:,.0f
 row8.metric("⏳ Outstanding Gross Profit (YTD)", f"{kpis['outstanding_gp']:,.0f} USD")
 row9.metric("⏳ Outstanding GP % (YTD)", f"{kpis['outstanding_gp_percent']}%")
 
-# ==================== Monthly Revenue ====================
+
+# ==================== Monthly Revenue & GP Chart ====================
 st.markdown("---")
 st.subheader("📊 Monthly Revenue, Gross Profit, and GP% Chart")
 
 monthly_summary = prepare_monthly_summary_data(inv_df, inv_by_kpi_center_df, exclude_internal)
 monthly_chart = build_monthly_revenue_gp_chart(monthly_summary, exclude_internal)
 st.altair_chart(monthly_chart, use_container_width=True)
+
+# ==================== Cumulative Revenue & GP Chart ====================
+st.markdown("---")
+st.subheader("📈 Cumulative Revenue and GP Over Time")
+
+cumulative_chart = build_cumulative_revenue_gp_chart(monthly_summary)
+st.altair_chart(cumulative_chart, use_container_width=True)
 
 # ==================== Territory KPI Section ====================
 st.markdown("---")
@@ -77,7 +88,6 @@ st.altair_chart(territory_bar_chart, use_container_width=True)
 st.markdown("---")
 st.subheader("🏭 KPI by Vertical: Revenue & Gross Profit")
 
-# Prepare summary for VERTICAL
 vertical_summary = prepare_dimension_summary_data(
     inv_df,
     inv_by_kpi_center_df,
@@ -85,19 +95,23 @@ vertical_summary = prepare_dimension_summary_data(
     exclude_internal=exclude_internal
 )
 
-# Display pie charts (Revenue + GP)
-vertical_pie_charts = build_dimension_pie_charts(
-    vertical_summary,
-    dimension_name="Vertical"
-)
+vertical_pie_charts = build_dimension_pie_charts(vertical_summary, dimension_name="Vertical")
 st.altair_chart(vertical_pie_charts, use_container_width=True)
 
-# Display bar + line chart (Revenue + GP + GP%)
-vertical_bar_chart = build_dimension_bar_chart(
-    vertical_summary,
-    dimension_name="Vertical"
-)
+vertical_bar_chart = build_dimension_bar_chart(vertical_summary, dimension_name="Vertical")
 st.altair_chart(vertical_bar_chart, use_container_width=True)
+
+
+# ==================== Top 80% Customers by GP ====================
+st.markdown("---")
+st.subheader("🏆 Top 80% Customers by Gross Profit")
+
+# Prepare data
+top_customers_df = prepare_top_customers_by_gp(inv_df, top_percent=0.8)
+
+# Build chart
+top_customers_chart = build_top_customers_gp_chart(top_customers_df)
+st.altair_chart(top_customers_chart, use_container_width=True)
 
 
 # ==================== Footer ====================
