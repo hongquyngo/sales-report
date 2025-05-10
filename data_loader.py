@@ -43,3 +43,26 @@ def load_data():
     backlog_by_kpi_center_df = pd.read_sql(text(backlog_by_kpi_center_query), engine)
 
     return inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df
+
+def load_sales_performance_data():
+
+    engine = get_db_engine()
+    """
+    Load data for sales performance page.
+    """
+    sales_data_by_salesperson_query = """
+        SELECT * FROM prostechvn.sales_report_flat_looker_view
+    """
+    backlog_data_by_salesperson_query = """
+        SELECT * FROM prostechvn.backlog_by_salesperson_looker_view
+    """
+    kpi_by_salesperson_query = """
+        SELECT * FROM prostechvn.sales_employee_kpi_assignments_view
+    """
+
+    sales_report_by_salesperson_df = pd.read_sql(text(sales_data_by_salesperson_query), engine)
+    backlog_report_by_salesperson_df = pd.read_sql(text(backlog_data_by_salesperson_query), engine)
+    kpi_by_salesperson_df = pd.read_sql(text(kpi_by_salesperson_query), engine)
+
+
+    return sales_report_by_salesperson_df, backlog_report_by_salesperson_df, kpi_by_salesperson_df

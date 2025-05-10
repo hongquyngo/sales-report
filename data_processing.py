@@ -7,6 +7,133 @@ import pandas as pd
 from constants import MONTH_ORDER
 
 
+def prepare_salesperson_top_customers_by_gp(sales_df: pd.DataFrame, top_percent=0.8) -> pd.DataFrame:
+    """
+    Prepare Top X% customers by GP for a specific salesperson.
+    """
+    df = sales_df.groupby("customer").agg({
+        "gross_profit_by_split_usd": "sum"
+    }).reset_index()
+
+    df = df.sort_values(by="gross_profit_by_split_usd", ascending=False)
+    df["cumulative_gp"] = df["gross_profit_by_split_usd"].cumsum()
+    total_gp = df["gross_profit_by_split_usd"].sum()
+    df["cumulative_percent"] = df["cumulative_gp"] / total_gp
+
+    # Select top customers covering up to top_percent (default 80%)
+    top_df = df[df["cumulative_percent"] <= top_percent]
+    return top_df
+
+
+def prepare_salesperson_cumulative_data(monthly_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare cumulative revenue & gross profit data for a salesperson.
+    """
+    df = monthly_df.copy()
+    df['Cumulative Revenue'] = df['sales_by_split_usd'].cumsum()
+    df['Cumulative Gross Profit'] = df['gross_profit_by_split_usd'].cumsum()
+    return df
+
+
+def prepare_salesperson_monthly_summary_data(sales_df: pd.DataFrame):
+    """
+    Prepare monthly summary for a salesperson, including Revenue, GP, GP% and Customer Count.
+
+    Args:
+        sales_df (DataFrame): Filtered sales data of a salesperson.
+
+    Returns:
+        DataFrame with columns: invoice_month, sales_by_split_usd, gross_profit_by_split_usd, gp_percent, customer_count
+    """
+    # Group by invoice_month
+    monthly_summary = sales_df.groupby('invoice_month').agg({
+        'sales_by_split_usd': 'sum',
+        'gross_profit_by_split_usd': 'sum',
+        'customer': pd.Series.nunique
+    }).reset_index()
+
+    # Calculate GP %
+    monthly_summary['gp_percent'] = monthly_summary.apply(
+        lambda row: (row['gross_profit_by_split_usd'] / row['sales_by_split_usd'] * 100) if row['sales_by_split_usd'] else 0,
+        axis=1
+    )
+
+    # Rename for clarity
+    monthly_summary.rename(columns={'customer': 'customer_count'}, inplace=True)
+
+    # Ensure all months are present
+    all_months = pd.DataFrame({'invoice_month': MONTH_ORDER})
+    monthly_summary = all_months.merge(monthly_summary, on='invoice_month', how='left').fillna(0)
+
+    return monthly_summary
+
+
+def calculate_salesperson_overview_metrics(sales_df, backlog_df, kpi_df, selected_sales):
+    """
+    Calculate YTD KPIs and KPI performance for a single salesperson.
+
+    Args:
+        sales_df (DataFrame): Sales performance data (filtered for the salesperson).
+        backlog_df (DataFrame): Backlog data (filtered for the salesperson).
+        kpi_df (DataFrame): KPI assignment data.
+        selected_sales (str): Salesperson name.
+
+    Returns:
+        dict: Metrics including total performance and % KPI achieved.
+    """
+    # === YTD Metrics ===
+    total_customers = sales_df['customer'].nunique()
+    total_invoices = sales_df['inv_number'].nunique()
+    total_sales_orders_invoiced = sales_df['oc_number'].nunique()
+
+    total_revenue = sales_df['sales_by_split_usd'].sum()
+    total_gp = sales_df['gross_profit_by_split_usd'].sum()
+
+    gp_percent = (total_gp / total_revenue * 100) if total_revenue else 0
+
+    outstanding_revenue = backlog_df['backlog_sales_by_split_usd'].sum()
+    outstanding_gp = backlog_df['backlog_gp_by_split_usd'].sum()
+
+    outstanding_gp_percent = (outstanding_gp / outstanding_revenue * 100) if outstanding_revenue else 0
+
+    # === Get KPI Assignments ===
+    kpi_revenue = None
+    kpi_gp = None
+
+    sales_kpi_row = kpi_df[kpi_df['employee_name'] == selected_sales]
+
+    if not sales_kpi_row.empty:
+        # KPI Revenue
+        kpi_revenue_row = sales_kpi_row[sales_kpi_row['kpi_name'].str.lower() == 'revenue']
+        if not kpi_revenue_row.empty:
+            kpi_revenue = float(kpi_revenue_row['annual_target_value'].str.replace(',', '').iloc[0])
+
+        # KPI GP
+        kpi_gp_row = sales_kpi_row[sales_kpi_row['kpi_name'].str.lower() == 'gross_profit']
+        if not kpi_gp_row.empty:
+            kpi_gp = float(kpi_gp_row['annual_target_value'].str.replace(',', '').iloc[0])
+
+    # === Calculate % KPI Achieved ===
+    percent_revenue_kpi = (total_revenue / kpi_revenue * 100) if kpi_revenue else None
+    percent_gp_kpi = (total_gp / kpi_gp * 100) if kpi_gp else None
+
+    return {
+        'total_customers': total_customers,
+        'total_invoices': total_invoices,
+        'total_sales_orders_invoiced': total_sales_orders_invoiced,
+        'display_revenue': total_revenue,
+        'total_gp': total_gp,
+        'gp_percent': round(gp_percent, 2),
+        'display_outstanding': outstanding_revenue,
+        'outstanding_gp': outstanding_gp,
+        'outstanding_gp_percent': round(outstanding_gp_percent, 2),
+        'percent_revenue_kpi': round(percent_revenue_kpi, 1) if percent_revenue_kpi is not None else None,
+        'percent_gp_kpi': round(percent_gp_kpi, 1) if percent_gp_kpi is not None else None
+    }
+
+
+###############
+
 def calculate_overview_metrics(inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df, exclude_internal=True):
     """
     Calculate main KPIs for the Overview section.

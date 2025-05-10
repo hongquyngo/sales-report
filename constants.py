@@ -6,7 +6,8 @@
 COLORS = {
     "revenue": "#FFA500",              # orange
     "gross_profit": "#1f77b4",         # blue
-    "gross_profit_percent": "#800080"  # purple
+    "gross_profit_percent": "#800080" , # purple
+    "customer_count": "#27ae60"  # ✅ Add this line (green)
 }
 
 # ======================

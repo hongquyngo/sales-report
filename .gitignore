@@ -7,6 +7,7 @@ __pycache__/
 #Ignore testing file
 
 test.py
+sales_performance_test.py
 
 # Ignore credentials and sensitive files
 credentials.json
@@ -20,3 +21,4 @@ Thumbs.db
 
 # Ignore Jupyter notebook checkpoints (if you ever use notebooks)
 .ipynb_checkpoints/
+desktop.ini
