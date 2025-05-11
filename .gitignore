@@ -8,6 +8,7 @@ __pycache__/
 
 test.py
 sales_performance_test.py
+user.txt
 
 # Ignore credentials and sensitive files
 credentials.json

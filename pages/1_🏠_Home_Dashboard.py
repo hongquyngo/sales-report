@@ -14,7 +14,7 @@ from chart_builder import (
     build_top_customers_gp_chart
 )
 
-st.set_page_config(page_title="🏠 YTD Summary", layout="wide")
+st.set_page_config(page_title="Prostech YTD Performance", layout="wide")
 st.title("📊 YTD Business Summary")
 
 # Sidebar Option
@@ -111,7 +111,6 @@ top_customers_df = prepare_top_customers_by_gp(inv_df, top_percent=0.8)
 # Build chart
 top_customers_chart = build_top_customers_gp_chart(top_customers_df, exclude_internal)
 st.altair_chart(top_customers_chart, use_container_width=True)
-
 
 # ==================== Footer ====================
 st.markdown("---")

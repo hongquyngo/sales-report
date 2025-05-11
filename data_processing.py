@@ -9,7 +9,16 @@ from constants import MONTH_ORDER
 
 def prepare_salesperson_top_customers_by_gp(sales_df: pd.DataFrame, top_percent=0.8) -> pd.DataFrame:
     """
-    Prepare Top X% customers by GP for a specific salesperson.
+    Prepare top customers contributing to the specified % of total gross profit
+    for a specific salesperson. Ensures inclusion of the customer that causes
+    cumulative % to exceed the threshold.
+
+    Args:
+        sales_df (DataFrame): Filtered sales data for a specific salesperson.
+        top_percent (float): Cumulative cutoff (e.g., 0.8 for top 80%).
+
+    Returns:
+        DataFrame: Top customers with gross profit, cumulative %, and GP %.
     """
     df = sales_df.groupby("customer").agg({
         "gross_profit_by_split_usd": "sum"
@@ -20,8 +29,21 @@ def prepare_salesperson_top_customers_by_gp(sales_df: pd.DataFrame, top_percent=
     total_gp = df["gross_profit_by_split_usd"].sum()
     df["cumulative_percent"] = df["cumulative_gp"] / total_gp
 
-    # Select top customers covering up to top_percent (default 80%)
-    top_df = df[df["cumulative_percent"] <= top_percent]
+    # Tìm index đầu tiên mà cumulative_percent > top_percent
+    first_exceed_index = df[df["cumulative_percent"] > top_percent].first_valid_index()
+
+    if first_exceed_index is None:
+        top_df = df.copy()
+    else:
+        top_df = df.loc[:first_exceed_index].copy()
+
+    # Rename + Add GP %
+    top_df.rename(columns={
+        "customer": "Customer",
+        "gross_profit_by_split_usd": "GrossProfit"
+    }, inplace=True)
+    top_df["GP_Percent"] = top_df["GrossProfit"] / total_gp * 100
+
     return top_df
 
 
@@ -180,7 +202,7 @@ def calculate_overview_metrics(inv_df, inv_by_kpi_center_df, backlog_df, backlog
 
 def prepare_monthly_summary_data(inv_df, inv_by_kpi_center_df, exclude_internal=True):
     """
-    Prepare monthly summary for Revenue, Gross Profit, GP%, and cumulative metrics.
+    Prepare monthly summary for Revenue, Gross Profit, GP%, Customer Count, and cumulative metrics.
 
     Args:
         inv_df (DataFrame): Invoice-level data.
@@ -190,13 +212,20 @@ def prepare_monthly_summary_data(inv_df, inv_by_kpi_center_df, exclude_internal=
     Returns:
         DataFrame: Monthly summary with calculated fields.
     """
+    # Extract invoice month
     inv_df["invoice_month"] = pd.to_datetime(inv_df["inv_date"]).dt.strftime("%b")
 
+    # Group by invoice month
     monthly_summary = inv_df.groupby("invoice_month").agg({
         "calculated_invoiced_amount_usd": "sum",
-        "invoiced_gross_profit_usd": "sum"
+        "invoiced_gross_profit_usd": "sum",
+        "customer": pd.Series.nunique  # customer count
     }).reindex(MONTH_ORDER).fillna(0).reset_index()
 
+    # Rename for clarity
+    monthly_summary.rename(columns={"customer": "customer_count"}, inplace=True)
+
+    # Handle exclude_internal logic
     if exclude_internal:
         internal_monthly = inv_by_kpi_center_df[
             inv_by_kpi_center_df["kpi_type"] == "INTERNAL"
@@ -210,12 +239,14 @@ def prepare_monthly_summary_data(inv_df, inv_by_kpi_center_df, exclude_internal=
     else:
         monthly_summary["adjusted_revenue_usd"] = monthly_summary["calculated_invoiced_amount_usd"]
 
+    # GP %
     monthly_summary["gp_percent"] = monthly_summary.apply(
         lambda row: (row["invoiced_gross_profit_usd"] / row["adjusted_revenue_usd"] * 100)
         if row["adjusted_revenue_usd"] else 0,
         axis=1
     )
 
+    # Cumulative
     monthly_summary["cumulative_revenue"] = monthly_summary["adjusted_revenue_usd"].cumsum()
     monthly_summary["cumulative_gp"] = monthly_summary["invoiced_gross_profit_usd"].cumsum()
 
@@ -291,10 +322,10 @@ def prepare_dimension_summary_data(inv_df, inv_by_kpi_center_df, dimension_type,
 
     return combined
 
-
 def prepare_top_customers_by_gp(inv_df, top_percent=0.8):
     """
     Prepare top customers contributing to the specified % of total gross profit.
+    Ensures inclusion of the first customer that causes cumulative % to exceed the threshold.
 
     Args:
         inv_df (DataFrame): Raw invoice data.
@@ -312,16 +343,19 @@ def prepare_top_customers_by_gp(inv_df, top_percent=0.8):
     total_gp = customer_gp["invoiced_gross_profit_usd"].sum()
     customer_gp["cumulative_percent"] = customer_gp["cumulative_gp"] / total_gp
 
-    # Filter top %
-    top_customers = customer_gp[customer_gp["cumulative_percent"] <= top_percent].copy()
+    # Tìm index đầu tiên mà cumulative_percent > top_percent
+    first_exceed_index = customer_gp[customer_gp["cumulative_percent"] > top_percent].first_valid_index()
 
-    # Rename columns
+    if first_exceed_index is None:
+        top_customers = customer_gp.copy()  # Trường hợp không có khách nào vượt ngưỡng
+    else:
+        top_customers = customer_gp.loc[:first_exceed_index].copy()
+
+    # Đổi tên cột và tính thêm GP %
     top_customers.rename(columns={
         "customer": "Customer",
         "invoiced_gross_profit_usd": "GrossProfit"
     }, inplace=True)
-
-    # Add GP %
     top_customers["GP_Percent"] = top_customers["GrossProfit"] / total_gp * 100
 
     return top_customers

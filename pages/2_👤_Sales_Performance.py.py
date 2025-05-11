@@ -14,7 +14,7 @@ from chart_builder import (
     build_salesperson_top_customers_gp_chart
 )
 
-st.set_page_config(page_title="👔 YTD Sales Performance", layout="wide")
+st.set_page_config(page_title="Performance by Salesperson", layout="wide")
 st.title("👔 YTD Sales Performance Summary")
 
 # Load data
@@ -24,7 +24,17 @@ sales_report_by_salesperson_df, backlog_report_by_salesperson_df, kpi_by_salespe
 st.subheader("🔎 Filter Options")
 
 # Get unique salesperson list
-sales_list = sorted(sales_report_by_salesperson_df['sales_name'].unique().tolist())
+# sales_list = sorted(sales_report_by_salesperson_df['sales_name'].unique().tolist())
+# Filter only ACTIVE sales employees, then get unique, sorted list of names
+sales_list = (
+    sales_report_by_salesperson_df[sales_report_by_salesperson_df["employment_status"] == "ACTIVE"]
+    ["sales_name"]
+    .dropna()
+    .unique()
+    .tolist()
+)
+sales_list = sorted(sales_list)
+
 
 # Dropdown single-select (default to first person)
 selected_sales = st.selectbox(
