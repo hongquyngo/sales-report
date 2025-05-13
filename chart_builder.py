@@ -3,6 +3,81 @@ import pandas as pd
 from constants import COLORS, CHART_WIDTH, CHART_HEIGHT, METRIC_LABELS, METRIC_ORDER, MONTH_ORDER, PIE_CHART_WIDTH, PIE_CHART_HEIGHT, COLOR_CENTER_MAP
 
 
+def build_salesperson_top_brands_gp_chart(top_brands_df: pd.DataFrame, salesperson_name: str) -> alt.Chart:
+    """
+    Build combined bar + line chart for top brands by gross profit for a specific salesperson.
+
+    Args:
+        top_brands_df (DataFrame): Top brands data with GrossProfit, cumulative %, and GP %.
+        salesperson_name (str): Name of the salesperson.
+
+    Returns:
+        Altair Chart
+    """
+    if top_brands_df.empty:
+        return alt.Chart(pd.DataFrame({'note': ["No data available"]})).mark_text(
+            text="No data available", size=20, color="red"
+        ).properties(height=200)
+
+    # Bar chart (Gross Profit)
+    bar_chart = alt.Chart(top_brands_df).mark_bar().encode(
+        x=alt.X("Brand:N", sort="-y", title="Brand"),
+        y=alt.Y("GrossProfit:Q", title="Gross Profit (USD)", axis=alt.Axis(format="~s")),
+        color=alt.value(COLORS["gross_profit"]),
+        tooltip=[
+            alt.Tooltip("Brand:N", title="Brand"),
+            alt.Tooltip("GrossProfit:Q", title="Gross Profit", format=",.0f"),
+            alt.Tooltip("GP_Percent:Q", title="GP %", format=".2f")
+        ]
+    ).properties(
+        width=CHART_WIDTH,
+        height=CHART_HEIGHT
+    )
+
+    # Text on bar
+    bar_text = alt.Chart(top_brands_df).mark_text(
+        align="center", baseline="bottom", dy=-5, size=11
+    ).encode(
+        x=alt.X("Brand:N", sort="-y"),
+        y=alt.Y("GrossProfit:Q", axis=None),
+        text=alt.Text("GrossProfit:Q", format=",.0f"),
+        color=alt.value("black")
+    )
+
+    # Line chart (Cumulative %)
+    line_chart = alt.Chart(top_brands_df).mark_line(point=True, color=COLORS["gross_profit_percent"]).encode(
+        x=alt.X("Brand:N", sort="-y"),
+        y=alt.Y("cumulative_percent:Q", title="Cumulative %", axis=alt.Axis(format=".0%")),
+        tooltip=[
+            alt.Tooltip("Brand:N", title="Brand"),
+            alt.Tooltip("cumulative_percent:Q", title="Cumulative %", format=".2%")
+        ]
+    )
+
+    # Line chart text
+    line_text = alt.Chart(top_brands_df).mark_text(
+        align="center", baseline="bottom", dy=-8, size=11, color=COLORS["gross_profit_percent"]
+    ).encode(
+        x=alt.X("Brand:N", sort="-y"),
+        y=alt.Y("cumulative_percent:Q", axis=None),
+        text=alt.Text("cumulative_percent:Q", format=".1%")
+    )
+
+    # Combine all layers
+    combined_chart = alt.layer(
+        bar_chart,
+        bar_text,
+        line_chart,
+        line_text
+    ).resolve_scale(
+        y='independent'
+    ).properties(
+        title=f"🏆 Top 80% Brands by Gross Profit for {salesperson_name}"
+    )
+
+    return combined_chart
+
+
 def build_salesperson_top_customers_gp_chart(top_customers_df: pd.DataFrame, salesperson_name: str):
     """
     Build combined bar + line chart for top customers by gross profit (for a specific salesperson),
@@ -277,7 +352,6 @@ def build_salesperson_monthly_chart(monthly_df: pd.DataFrame, salesperson_name: 
     )
 
     return chart
-
 
 
 def build_sales_overview_bar_chart(summary_df):
@@ -570,7 +644,6 @@ def build_dimension_pie_charts(summary_df: pd.DataFrame, exclude_internal: bool,
     return revenue_pie_chart | gp_pie_chart
 
 
-
 def build_dimension_bar_chart(summary_df: pd.DataFrame, exclude_internal: bool, dimension_name: str):
     """
     Build combined bar + line chart for Revenue, Gross Profit, and GP% by dimension,
@@ -726,6 +799,80 @@ def build_top_customers_gp_chart(top_customers_df: pd.DataFrame, exclude_interna
         y='independent'
     ).properties(
         title=f"🏆 Top 80% Customers by Gross Profit (Bar + Cumulative Line) ({'Excl. Internal' if exclude_internal else 'Incl. Internal'})"
+    )
+
+    return combined_chart
+
+
+def build_top_brands_gp_chart(top_brands_df: pd.DataFrame, exclude_internal: bool) -> alt.Chart:
+    """
+    Build combined bar + line chart for top brands by gross profit.
+
+    Args:
+        top_brands_df (DataFrame): Top brands data with GrossProfit, cumulative %, and GP %.
+
+    Returns:
+        Altair Chart
+    """
+    if top_brands_df.empty:
+        return alt.Chart(pd.DataFrame({'note': ["No data available"]})).mark_text(
+            text="No data available", size=20, color="red"
+        ).properties(height=200)
+
+    # Bar chart (Gross Profit)
+    bar_chart = alt.Chart(top_brands_df).mark_bar().encode(
+        x=alt.X("Brand:N", sort="-y", title="Brand"),
+        y=alt.Y("GrossProfit:Q", title="Gross Profit (USD)", axis=alt.Axis(format="~s")),
+        color=alt.value(COLORS["gross_profit"]),
+        tooltip=[
+            alt.Tooltip("Brand:N", title="Brand"),
+            alt.Tooltip("GrossProfit:Q", title="Gross Profit", format=",.0f"),
+            alt.Tooltip("GP_Percent:Q", title="GP %", format=".2f")
+        ]
+    ).properties(
+        width=CHART_WIDTH,
+        height=CHART_HEIGHT
+    )
+
+    # Text on bar
+    bar_text = alt.Chart(top_brands_df).mark_text(
+        align="center", baseline="bottom", dy=-5, size=11
+    ).encode(
+        x=alt.X("Brand:N", sort="-y"),
+        y=alt.Y("GrossProfit:Q", axis=None),
+        text=alt.Text("GrossProfit:Q", format=",.0f"),
+        color=alt.value("black")
+    )
+
+    # Line chart (Cumulative %)
+    line_chart = alt.Chart(top_brands_df).mark_line(point=True, color=COLORS["gross_profit_percent"]).encode(
+        x=alt.X("Brand:N", sort="-y"),
+        y=alt.Y("cumulative_percent:Q", title="Cumulative %", axis=alt.Axis(format=".0%")),
+        tooltip=[
+            alt.Tooltip("Brand:N", title="Brand"),
+            alt.Tooltip("cumulative_percent:Q", title="Cumulative %", format=".2%")
+        ]
+    )
+
+    # Line chart text
+    line_text = alt.Chart(top_brands_df).mark_text(
+        align="center", baseline="bottom", dy=-8, size=11, color=COLORS["gross_profit_percent"]
+    ).encode(
+        x=alt.X("Brand:N", sort="-y"),
+        y=alt.Y("cumulative_percent:Q", axis=None),
+        text=alt.Text("cumulative_percent:Q", format=".1%")
+    )
+
+    # Combine
+    combined_chart = alt.layer(
+        bar_chart,
+        bar_text,
+        line_chart,
+        line_text
+    ).resolve_scale(
+        y='independent'
+    ).properties(
+        title=f"🏆 Top 80% Brands by Gross Profit (Bar + Cumulative Line) ({'Excl. Internal' if exclude_internal else 'Incl. Internal'})"
     )
 
     return combined_chart

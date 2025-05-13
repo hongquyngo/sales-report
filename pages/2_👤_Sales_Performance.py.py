@@ -5,13 +5,15 @@ from data_processing import (
     calculate_salesperson_overview_metrics,
     prepare_salesperson_monthly_summary_data,
     prepare_salesperson_cumulative_data,
-    prepare_salesperson_top_customers_by_gp
+    prepare_salesperson_top_customers_by_gp,
+    prepare_salesperson_top_brands_by_gp
 )
 
 from chart_builder import (
     build_salesperson_monthly_chart,
     build_salesperson_cumulative_chart,
-    build_salesperson_top_customers_gp_chart
+    build_salesperson_top_customers_gp_chart,
+    build_salesperson_top_brands_gp_chart
 )
 
 st.set_page_config(page_title="Performance by Salesperson", layout="wide")
@@ -142,6 +144,20 @@ top_customers_chart = build_salesperson_top_customers_gp_chart(top_customers_df,
 
 # Show chart
 st.altair_chart(top_customers_chart, use_container_width=True)
+
+
+
+# =================== TOP BRANDS BY GP ======================
+st.markdown("---")
+st.subheader(f"🏆 Top 80% Brands by Gross Profit for {selected_sales}")
+
+# Filter theo từng sales
+salesperson_top_brands_df = prepare_salesperson_top_brands_by_gp(filtered_sales_report_df, top_percent=0.8)
+
+# Vẽ biểu đồ
+chart = build_salesperson_top_brands_gp_chart(salesperson_top_brands_df, selected_sales)
+st.altair_chart(chart, use_container_width=True)
+
 
 # ==================== Footer ====================
 st.markdown("---")

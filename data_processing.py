@@ -7,6 +7,45 @@ import pandas as pd
 from constants import MONTH_ORDER
 
 
+def prepare_salesperson_top_brands_by_gp(sales_df: pd.DataFrame, top_percent=0.8) -> pd.DataFrame:
+    """
+    Prepare top brands contributing to the specified % of gross profit for a specific salesperson.
+    Ensures inclusion of the first brand that causes cumulative % to exceed the threshold.
+
+    Args:
+        sales_df (DataFrame): Filtered sales data for a specific salesperson.
+        top_percent (float): Cumulative cutoff (e.g., 0.8 for top 80%).
+
+    Returns:
+        DataFrame: Top brands with gross profit, cumulative %, and GP %.
+    """
+    # Group gross profit by brand
+    brand_gp = sales_df.groupby("brand")["gross_profit_by_split_usd"].sum().reset_index()
+    brand_gp = brand_gp.sort_values(by="gross_profit_by_split_usd", ascending=False)
+
+    # Compute cumulative GP and % of total
+    brand_gp["cumulative_gp"] = brand_gp["gross_profit_by_split_usd"].cumsum()
+    total_gp = brand_gp["gross_profit_by_split_usd"].sum()
+    brand_gp["cumulative_percent"] = brand_gp["cumulative_gp"] / total_gp
+
+    # Ensure inclusion of the brand that crosses the threshold
+    first_exceed_index = brand_gp[brand_gp["cumulative_percent"] > top_percent].first_valid_index()
+
+    if first_exceed_index is None:
+        top_brands = brand_gp.copy()
+    else:
+        top_brands = brand_gp.loc[:first_exceed_index].copy()
+
+    # Rename columns and compute % contribution
+    top_brands.rename(columns={
+        "brand": "Brand",
+        "gross_profit_by_split_usd": "GrossProfit"
+    }, inplace=True)
+    top_brands["GP_Percent"] = top_brands["GrossProfit"] / total_gp * 100
+
+    return top_brands
+
+
 def prepare_salesperson_top_customers_by_gp(sales_df: pd.DataFrame, top_percent=0.8) -> pd.DataFrame:
     """
     Prepare top customers contributing to the specified % of total gross profit
@@ -359,3 +398,41 @@ def prepare_top_customers_by_gp(inv_df, top_percent=0.8):
     top_customers["GP_Percent"] = top_customers["GrossProfit"] / total_gp * 100
 
     return top_customers
+
+def prepare_top_brands_by_gp(inv_df: pd.DataFrame, top_percent=0.8) -> pd.DataFrame:
+    """
+    Prepare top brands contributing to the specified % of total gross profit.
+    Ensures inclusion of the first brand that causes cumulative % to exceed the threshold.
+
+    Args:
+        inv_df (DataFrame): Raw invoice data.
+        top_percent (float): Cumulative cutoff (e.g., 0.8 for top 80%).
+
+    Returns:
+        DataFrame: Top brands with gross profit, cumulative %, and GP %.
+    """
+    # Group gross profit by brand
+    brand_gp = inv_df.groupby("brand")["invoiced_gross_profit_usd"].sum().reset_index()
+    brand_gp = brand_gp.sort_values(by="invoiced_gross_profit_usd", ascending=False)
+
+    # Cumulative gross profit and percent
+    brand_gp["cumulative_gp"] = brand_gp["invoiced_gross_profit_usd"].cumsum()
+    total_gp = brand_gp["invoiced_gross_profit_usd"].sum()
+    brand_gp["cumulative_percent"] = brand_gp["cumulative_gp"] / total_gp
+
+    # Find index of first brand that pushes cumulative > threshold
+    first_exceed_index = brand_gp[brand_gp["cumulative_percent"] > top_percent].first_valid_index()
+
+    if first_exceed_index is None:
+        top_brands = brand_gp.copy()
+    else:
+        top_brands = brand_gp.loc[:first_exceed_index].copy()
+
+    # Rename and calculate %
+    top_brands.rename(columns={
+        "brand": "Brand",
+        "invoiced_gross_profit_usd": "GrossProfit"
+    }, inplace=True)
+    top_brands["GP_Percent"] = top_brands["GrossProfit"] / total_gp * 100
+
+    return top_brands

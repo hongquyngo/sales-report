@@ -4,14 +4,16 @@ from data_processing import (
     calculate_overview_metrics,
     prepare_monthly_summary_data,
     prepare_dimension_summary_data,
-    prepare_top_customers_by_gp
+    prepare_top_customers_by_gp,
+    prepare_top_brands_by_gp
 )
 from chart_builder import (
     build_monthly_revenue_gp_chart,
     build_cumulative_revenue_gp_chart,
     build_dimension_pie_charts,
     build_dimension_bar_chart,
-    build_top_customers_gp_chart
+    build_top_customers_gp_chart,
+    build_top_brands_gp_chart
 )
 
 st.set_page_config(page_title="Prostech YTD Performance", layout="wide")
@@ -111,6 +113,21 @@ top_customers_df = prepare_top_customers_by_gp(inv_df, top_percent=0.8)
 # Build chart
 top_customers_chart = build_top_customers_gp_chart(top_customers_df, exclude_internal)
 st.altair_chart(top_customers_chart, use_container_width=True)
+
+
+# ==================== Top 80% Brands by Gross Profit ====================
+st.markdown("---")
+st.subheader("🏆 Top 80% Brands by Gross Profit")
+
+# Prepare data
+top_brands_df = prepare_top_brands_by_gp(inv_df, top_percent=0.8)
+
+# Build chart
+top_brands_chart = build_top_brands_gp_chart(top_brands_df,  exclude_internal)
+
+# Display chart
+st.altair_chart(top_brands_chart, use_container_width=True)
+
 
 # ==================== Footer ====================
 st.markdown("---")
