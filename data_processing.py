@@ -20,12 +20,12 @@ def prepare_salesperson_top_brands_by_gp(sales_df: pd.DataFrame, top_percent=0.8
         DataFrame: Top brands with gross profit, cumulative %, and GP %.
     """
     # Group gross profit by brand
-    brand_gp = sales_df.groupby("brand")["gross_profit_by_split_usd"].sum().reset_index()
-    brand_gp = brand_gp.sort_values(by="gross_profit_by_split_usd", ascending=False)
+    brand_gp = sales_df.groupby("brand")["gp1_by_split_usd"].sum().reset_index()
+    brand_gp = brand_gp.sort_values(by="gp1_by_split_usd", ascending=False)
 
     # Compute cumulative GP and % of total
-    brand_gp["cumulative_gp"] = brand_gp["gross_profit_by_split_usd"].cumsum()
-    total_gp = brand_gp["gross_profit_by_split_usd"].sum()
+    brand_gp["cumulative_gp"] = brand_gp["gp1_by_split_usd"].cumsum()
+    total_gp = brand_gp["gp1_by_split_usd"].sum()
     brand_gp["cumulative_percent"] = brand_gp["cumulative_gp"] / total_gp
 
     # Ensure inclusion of the brand that crosses the threshold
@@ -39,7 +39,7 @@ def prepare_salesperson_top_brands_by_gp(sales_df: pd.DataFrame, top_percent=0.8
     # Rename columns and compute % contribution
     top_brands.rename(columns={
         "brand": "Brand",
-        "gross_profit_by_split_usd": "GrossProfit"
+        "gp1_by_split_usd": "GrossProfit"
     }, inplace=True)
     top_brands["GP_Percent"] = top_brands["GrossProfit"] / total_gp * 100
 
@@ -60,12 +60,12 @@ def prepare_salesperson_top_customers_by_gp(sales_df: pd.DataFrame, top_percent=
         DataFrame: Top customers with gross profit, cumulative %, and GP %.
     """
     df = sales_df.groupby("customer").agg({
-        "gross_profit_by_split_usd": "sum"
+        "gp1_by_split_usd": "sum"
     }).reset_index()
 
-    df = df.sort_values(by="gross_profit_by_split_usd", ascending=False)
-    df["cumulative_gp"] = df["gross_profit_by_split_usd"].cumsum()
-    total_gp = df["gross_profit_by_split_usd"].sum()
+    df = df.sort_values(by="gp1_by_split_usd", ascending=False)
+    df["cumulative_gp"] = df["gp1_by_split_usd"].cumsum()
+    total_gp = df["gp1_by_split_usd"].sum()
     df["cumulative_percent"] = df["cumulative_gp"] / total_gp
 
     # Tìm index đầu tiên mà cumulative_percent > top_percent
@@ -79,7 +79,7 @@ def prepare_salesperson_top_customers_by_gp(sales_df: pd.DataFrame, top_percent=
     # Rename + Add GP %
     top_df.rename(columns={
         "customer": "Customer",
-        "gross_profit_by_split_usd": "GrossProfit"
+        "gp1_by_split_usd": "GrossProfit"
     }, inplace=True)
     top_df["GP_Percent"] = top_df["GrossProfit"] / total_gp * 100
 
@@ -92,7 +92,7 @@ def prepare_salesperson_cumulative_data(monthly_df: pd.DataFrame) -> pd.DataFram
     """
     df = monthly_df.copy()
     df['Cumulative Revenue'] = df['sales_by_split_usd'].cumsum()
-    df['Cumulative Gross Profit'] = df['gross_profit_by_split_usd'].cumsum()
+    df['Cumulative Gross Profit'] = df['gp1_by_split_usd'].cumsum()
     return df
 
 
@@ -104,18 +104,18 @@ def prepare_salesperson_monthly_summary_data(sales_df: pd.DataFrame):
         sales_df (DataFrame): Filtered sales data of a salesperson.
 
     Returns:
-        DataFrame with columns: invoice_month, sales_by_split_usd, gross_profit_by_split_usd, gp_percent, customer_count
+        DataFrame with columns: invoice_month, sales_by_split_usd, gp1_by_split_usd, gp_percent, customer_count
     """
     # Group by invoice_month
     monthly_summary = sales_df.groupby('invoice_month').agg({
         'sales_by_split_usd': 'sum',
-        'gross_profit_by_split_usd': 'sum',
+        'gp1_by_split_usd': 'sum',
         'customer': pd.Series.nunique
     }).reset_index()
 
     # Calculate GP %
     monthly_summary['gp_percent'] = monthly_summary.apply(
-        lambda row: (row['gross_profit_by_split_usd'] / row['sales_by_split_usd'] * 100) if row['sales_by_split_usd'] else 0,
+        lambda row: (row['gp1_by_split_usd'] / row['sales_by_split_usd'] * 100) if row['sales_by_split_usd'] else 0,
         axis=1
     )
 
@@ -148,7 +148,7 @@ def calculate_salesperson_overview_metrics(sales_df, backlog_df, kpi_df, selecte
     total_sales_orders_invoiced = sales_df['oc_number'].nunique()
 
     total_revenue = sales_df['sales_by_split_usd'].sum()
-    total_gp = sales_df['gross_profit_by_split_usd'].sum()
+    total_gp = sales_df['gp1_by_split_usd'].sum()
 
     gp_percent = (total_gp / total_revenue * 100) if total_revenue else 0
 

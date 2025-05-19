@@ -51,7 +51,7 @@ def load_sales_performance_data():
     Load data for sales performance page.
     """
     sales_data_by_salesperson_query = """
-        SELECT * FROM prostechvn.sales_report_flat_looker_view
+        SELECT * FROM prostechvn.sales_gp1_by_split_view
     """
     backlog_data_by_salesperson_query = """
         SELECT * FROM prostechvn.backlog_by_salesperson_looker_view
@@ -66,3 +66,11 @@ def load_sales_performance_data():
 
 
     return sales_report_by_salesperson_df, backlog_report_by_salesperson_df, kpi_by_salesperson_df
+
+
+def load_outbound_demand_data():
+    engine = get_db_engine()
+    query = """
+        SELECT * FROM prostechvn.outbound_oc_pending_delivery_view;
+    """
+    return pd.read_sql(text(query), engine)

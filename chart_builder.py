@@ -227,14 +227,14 @@ def build_salesperson_monthly_chart(monthly_df: pd.DataFrame, salesperson_name: 
     monthly_melted = pd.melt(
         monthly_df,
         id_vars=['invoice_month'],
-        value_vars=['sales_by_split_usd', 'gross_profit_by_split_usd'],
+        value_vars=['sales_by_split_usd', 'gp1_by_split_usd'],
         var_name='Metric',
         value_name='Amount'
     )
 
     metric_label_map = {
         "sales_by_split_usd": "Revenue (USD)",
-        "gross_profit_by_split_usd": "Gross Profit (USD)"
+        "gp1_by_split_usd": "Gross Profit (USD)"
     }
     monthly_melted["Metric"] = monthly_melted["Metric"].map(metric_label_map)
     monthly_melted = monthly_melted.dropna(subset=["Amount"])
@@ -367,13 +367,13 @@ def build_sales_overview_bar_chart(summary_df):
     melted = pd.melt(
         summary_df,
         id_vars=['sales_name'],
-        value_vars=['sales_by_split_usd', 'gross_profit_by_split_usd'],
+        value_vars=['sales_by_split_usd', 'gp1_by_split_usd'],
         var_name='Metric',
         value_name='Amount'
     )
 
     color_scale = alt.Scale(
-        domain=['sales_by_split_usd', 'gross_profit_by_split_usd'],
+        domain=['sales_by_split_usd', 'gp1_by_split_usd'],
         range=[COLORS['revenue'], COLORS['gross_profit']]
     )
 
