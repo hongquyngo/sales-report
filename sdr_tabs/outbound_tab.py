@@ -9,6 +9,12 @@ from data_loader import load_outbound_demand_data, load_customer_forecast_data
 def show_outbound_demand_tab():
     st.subheader("📤 Outbound Demand by Period")
 
+    with st.expander("⚙️ Advanced Options", expanded=False):
+        if st.button("🔄 Clear Cached Data"):
+            st.cache_data.clear()
+            st.success("✅ Cache cleared. Please reload the data.")
+            return 
+
     output_source = select_data_source()
 
     df_all = load_and_prepare_data(output_source)
