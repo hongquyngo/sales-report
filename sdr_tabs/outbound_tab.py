@@ -1,57 +1,44 @@
-from data_loader import load_outbound_demand_data, load_customer_forecast_data
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
 
+from data_loader import load_outbound_demand_data, load_customer_forecast_data
+
 
 def show_outbound_demand_tab():
     st.subheader("📤 Outbound Demand by Period")
 
-    # === Select data source ===
-    output_source = st.radio(
+    output_source = select_data_source()
+
+    df_all = load_and_prepare_data(output_source)
+    if df_all.empty:
+        st.info("No outbound demand data available.")
+        return
+
+    filtered_df, start_date, end_date = apply_outbound_filters(df_all)
+    show_outbound_summary(filtered_df)
+    show_grouped_demand_summary(filtered_df, start_date, end_date)
+
+
+def select_data_source():
+    return st.radio(
         "Select Outbound Demand Source:",
         ["OC Only", "Forecast Only", "Both"],
         horizontal=True
     )
 
-    df_oc = pd.DataFrame()
-    df_fc = pd.DataFrame()
 
+def load_and_prepare_data(source):
+    df_oc, df_fc = pd.DataFrame(), pd.DataFrame()
 
-
-    if output_source in ["OC Only", "Both"]:
+    if source in ["OC Only", "Both"]:
         df_oc = load_outbound_demand_data()
         df_oc["source_type"] = "OC"
-    
-    if output_source in ["Forecast Only", "Both"]:
+
+    if source in ["Forecast Only", "Both"]:
         df_fc = load_customer_forecast_data()
         df_fc["source_type"] = "Forecast"
-
-    if df_oc.empty and df_fc.empty:
-        st.info("No outbound demand data available.")
-        return
-
-    # === Harmonize Columns ===
-    def standardize_df(df, is_forecast):
-        df = df.copy()
-        df['etd'] = pd.to_datetime(df['etd'])
-        df['oc_date'] = pd.to_datetime(df.get('oc_date', pd.NaT))
-
-        # Sử dụng đúng nguồn quantity
-        if is_forecast:
-            df['demand_quantity'] = pd.to_numeric(df['selling_quantity'], errors='coerce').fillna(0)
-        else:
-            df['demand_quantity'] = pd.to_numeric(df['pending_delivery_quantity'], errors='coerce').fillna(0)
-
-        # Standardize shared columns
-        df['product_pn'] = df['product_pn'].astype(str)
-        df['pt_code'] = df['pt_code'].astype(str)
-        df['brand'] = df['brand'].astype(str)
-        df['legal_entity'] = df['legal_entity'].astype(str)
-        df['customer'] = df['customer'].astype(str)
-        return df
-
 
     df_parts = []
     if not df_oc.empty:
@@ -60,25 +47,30 @@ def show_outbound_demand_tab():
         df_parts.append(standardize_df(df_fc, is_forecast=True))
 
     if not df_parts:
-        st.info("No outbound demand data available.")
-        return
+        return pd.DataFrame()
 
-    df_all = pd.concat(df_parts, ignore_index=True)
+    return pd.concat(df_parts, ignore_index=True)
 
 
-    # === Filters + Table ===
-    filtered_df, start_date, end_date = apply_outbound_filters(df_all)
-    st.markdown("### 🔍 Outbound Demand Details")
-    st.dataframe(
-        filtered_df[[
-            "source_type", "product_pn", "pt_code", "etd", "demand_quantity",
-            "customer", "legal_entity", "brand"
-        ]],
-        use_container_width=True
-    )
+def standardize_df(df, is_forecast):
+    df = df.copy()
+    df['etd'] = pd.to_datetime(df['etd'])
+    df['oc_date'] = pd.to_datetime(df.get('oc_date', pd.NaT))
 
-    # === Group Summary ===
-    show_grouped_demand_summary(filtered_df, start_date, end_date)
+    if is_forecast:
+        df['demand_quantity'] = pd.to_numeric(df['selling_quantity'], errors='coerce').fillna(0)
+        df['value_in_usd'] = pd.to_numeric(df.get('total_amount_usd', 0), errors='coerce').fillna(0)
+    else:
+        df['demand_quantity'] = pd.to_numeric(df['pending_delivery_quantity'], errors='coerce').fillna(0)
+        df['value_in_usd'] = pd.to_numeric(df.get('outstanding_amount_usd', 0), errors='coerce').fillna(0)
+
+    df['product_pn'] = df['product_pn'].astype(str)
+    df['pt_code'] = df['pt_code'].astype(str)
+    df['brand'] = df['brand'].astype(str)
+    df['legal_entity'] = df['legal_entity'].astype(str)
+    df['customer'] = df['customer'].astype(str)
+
+    return df
 
 
 def apply_outbound_filters(df):
@@ -99,7 +91,6 @@ def apply_outbound_filters(df):
         with col6:
             end_date = st.date_input("To Date (ETD)", df["etd"].max().date())
 
-
     filtered_df = df.copy()
     if selected_entity:
         filtered_df = filtered_df[filtered_df["legal_entity"].isin(selected_entity)]
@@ -118,6 +109,25 @@ def apply_outbound_filters(df):
     return filtered_df, start_date, end_date
 
 
+def show_outbound_summary(filtered_df):
+    st.markdown("### 🔍 Outbound Demand Details")
+
+    total_unique_products = filtered_df["pt_code"].nunique()
+    total_value_usd = filtered_df["value_in_usd"].sum()
+
+    st.markdown(f"🔢 Total Unique Products: **{int(total_unique_products):,}**  💵 Total Value (USD): **${total_value_usd:,.2f}**")
+
+    display_df = filtered_df[[
+        "source_type", "product_pn", "brand", "pt_code", "etd", "demand_quantity",
+        "value_in_usd", "customer", "legal_entity"
+    ]].copy()
+
+    display_df["demand_quantity"] = display_df["demand_quantity"].apply(lambda x: f"{x:,.0f}")
+    display_df["value_in_usd"] = display_df["value_in_usd"].apply(lambda x: f"${x:,.2f}")
+
+    st.dataframe(display_df, use_container_width=True)
+
+
 def show_grouped_demand_summary(filtered_df, start_date, end_date):
     st.markdown("### 📦 Grouped Demand by Product (Pivot View)")
     st.markdown(f"📅 Showing demand from **{start_date}** to **{end_date}**")
@@ -130,18 +140,16 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
 
     df_summary = filtered_df.copy()
 
-    # ==== Create Period Column ====
     if period == "Daily":
         df_summary["period"] = df_summary["etd"].dt.strftime("%Y-%m-%d")
     elif period == "Weekly":
         df_summary["year"] = df_summary["etd"].dt.isocalendar().year
         df_summary["week"] = df_summary["etd"].dt.isocalendar().week
         df_summary["period"] = df_summary["week"].apply(lambda w: f"Week {w:02}") + " - " + df_summary["year"].astype(str)
-    else:  # Monthly
+    else:
         df_summary["year_month"] = df_summary["etd"].dt.to_period("M")
         df_summary["period"] = df_summary["year_month"].dt.strftime("%b %Y")
 
-    # ==== Pivot Table ====
     pivot_df = (
         df_summary
         .groupby(["product_pn", "pt_code", "period"])
@@ -152,12 +160,11 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
         .reset_index()
     )
 
-    # ==== Sort Columns Chronologically ====
     if period == "Weekly":
         cols = pivot_df.columns[:2].tolist()
         sorted_periods = sorted(pivot_df.columns[2:], key=lambda x: (
-            int(x.split(" - ")[1]),   # year
-            int(x.split(" - ")[0].split(" ")[1])  # week number
+            int(x.split(" - ")[1]),
+            int(x.split(" - ")[0].split(" ")[1])
         ))
         pivot_df = pivot_df[cols + sorted_periods]
 
@@ -172,20 +179,37 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
         )
         pivot_df = pivot_df[cols + [p for p in sorted_periods if p in pivot_df.columns]]
 
-    # ==== Filter Non-zero Rows ====
     if show_only_nonzero:
         pivot_df = pivot_df[pivot_df.iloc[:, 2:].sum(axis=1) > 0]
 
-    # ==== Display ====
+    pivot_df.iloc[:, 2:] = pivot_df.iloc[:, 2:].applymap(lambda x: f"{x:,.0f}")
+
     st.dataframe(pivot_df, use_container_width=True)
 
-    # ==== Export Excel ====
-    def convert_df_to_excel(df):
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False, sheet_name="Grouped Demand")
-        return output.getvalue()
+    # === Totals ===
+    df_grouped = df_summary.copy()
+    df_grouped["demand_quantity"] = pd.to_numeric(df_grouped["demand_quantity"], errors='coerce').fillna(0)
+    df_grouped["value_in_usd"] = pd.to_numeric(df_grouped["value_in_usd"], errors='coerce').fillna(0)
 
+    pivot_qty = df_grouped.groupby("period").agg(total_quantity=("demand_quantity", "sum")).T
+    pivot_val = df_grouped.groupby("period").agg(total_value_usd=("value_in_usd", "sum")).T
+
+    pivot_qty.index = ["🔢 TOTAL QUANTITY"]
+    pivot_val.index = ["💵 TOTAL VALUE (USD)"]
+
+    pivot_final = pd.concat([pivot_qty, pivot_val])
+    pivot_final = pivot_final.reset_index().rename(columns={"index": "Metric"})
+
+    for col in pivot_final.columns[1:]:
+        if "QUANTITY" in pivot_final["Metric"].values:
+            pivot_final.loc[pivot_final["Metric"] == "🔢 TOTAL QUANTITY", col] = f"{pivot_final.loc[pivot_final['Metric'] == '🔢 TOTAL QUANTITY', col].values[0]:,.0f}"
+        if "VALUE" in pivot_final["Metric"].values:
+            pivot_final.loc[pivot_final["Metric"] == "💵 TOTAL VALUE (USD)", col] = f"${pivot_final.loc[pivot_final['Metric'] == '💵 TOTAL VALUE (USD)', col].values[0]:,.2f}"
+
+    st.markdown("🔢 Column Total (All Products)")
+    st.dataframe(pivot_final, use_container_width=True)
+
+    # === Export Excel ===
     excel_data = convert_df_to_excel(pivot_df)
     st.download_button(
         label="📤 Export to Excel",
@@ -193,3 +217,10 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
         file_name="grouped_outbound_demand.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
+def convert_df_to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Grouped Demand")
+    return output.getvalue()
