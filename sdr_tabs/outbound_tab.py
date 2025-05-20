@@ -1,4 +1,4 @@
-from data_loader import load_outbound_demand_data
+from data_loader import load_outbound_demand_data, load_customer_forecast_data
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -8,28 +8,76 @@ from io import BytesIO
 def show_outbound_demand_tab():
     st.subheader("📤 Outbound Demand by Period")
 
-    df = load_outbound_demand_data()
-    if df.empty:
+    # === Select data source ===
+    output_source = st.radio(
+        "Select Outbound Demand Source:",
+        ["OC Only", "Forecast Only", "Both"],
+        horizontal=True
+    )
+
+    df_oc = pd.DataFrame()
+    df_fc = pd.DataFrame()
+
+
+
+    if output_source in ["OC Only", "Both"]:
+        df_oc = load_outbound_demand_data()
+        df_oc["source_type"] = "OC"
+    
+    if output_source in ["Forecast Only", "Both"]:
+        df_fc = load_customer_forecast_data()
+        df_fc["source_type"] = "Forecast"
+
+    if df_oc.empty and df_fc.empty:
         st.info("No outbound demand data available.")
         return
 
-    df['etd'] = pd.to_datetime(df['etd'])
-    df['oc_date'] = pd.to_datetime(df['oc_date'])
+    # === Harmonize Columns ===
+    def standardize_df(df, is_forecast):
+        df = df.copy()
+        df['etd'] = pd.to_datetime(df['etd'])
+        df['oc_date'] = pd.to_datetime(df.get('oc_date', pd.NaT))
 
-    # =========================
-    # 🔍 Filter Controls
-    # =========================
-    filtered_df, start_date, end_date = apply_outbound_filters(df)
+        # Sử dụng đúng nguồn quantity
+        if is_forecast:
+            df['demand_quantity'] = pd.to_numeric(df['selling_quantity'], errors='coerce').fillna(0)
+        else:
+            df['demand_quantity'] = pd.to_numeric(df['pending_delivery_quantity'], errors='coerce').fillna(0)
 
-    # =========================
-    # 📋 Outbound Demand Detail
-    # =========================
+        # Standardize shared columns
+        df['product_pn'] = df['product_pn'].astype(str)
+        df['pt_code'] = df['pt_code'].astype(str)
+        df['brand'] = df['brand'].astype(str)
+        df['legal_entity'] = df['legal_entity'].astype(str)
+        df['customer'] = df['customer'].astype(str)
+        return df
+
+
+    df_parts = []
+    if not df_oc.empty:
+        df_parts.append(standardize_df(df_oc, is_forecast=False))
+    if not df_fc.empty:
+        df_parts.append(standardize_df(df_fc, is_forecast=True))
+
+    if not df_parts:
+        st.info("No outbound demand data available.")
+        return
+
+    df_all = pd.concat(df_parts, ignore_index=True)
+
+
+    # === Filters + Table ===
+    filtered_df, start_date, end_date = apply_outbound_filters(df_all)
     st.markdown("### 🔍 Outbound Demand Details")
-    st.dataframe(filtered_df, use_container_width=True)
+    st.dataframe(
+        filtered_df[[
+            "source_type", "product_pn", "pt_code", "etd", "demand_quantity",
+            "customer", "legal_entity", "brand"
+        ]],
+        use_container_width=True
+    )
 
-    # =========================
-    # 📦 Grouped Demand by Product
-    # =========================
+    # === Group Summary ===
     show_grouped_demand_summary(filtered_df, start_date, end_date)
 
 
@@ -51,6 +99,7 @@ def apply_outbound_filters(df):
         with col6:
             end_date = st.date_input("To Date (ETD)", df["etd"].max().date())
 
+
     filtered_df = df.copy()
     if selected_entity:
         filtered_df = filtered_df[filtered_df["legal_entity"].isin(selected_entity)]
@@ -71,7 +120,6 @@ def apply_outbound_filters(df):
 
 def show_grouped_demand_summary(filtered_df, start_date, end_date):
     st.markdown("### 📦 Grouped Demand by Product (Pivot View)")
-
     st.markdown(f"📅 Showing demand from **{start_date}** to **{end_date}**")
 
     col_period, col_filter = st.columns(2)
@@ -93,12 +141,11 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
         df_summary["year_month"] = df_summary["etd"].dt.to_period("M")
         df_summary["period"] = df_summary["year_month"].dt.strftime("%b %Y")
 
-
     # ==== Pivot Table ====
     pivot_df = (
         df_summary
         .groupby(["product_pn", "pt_code", "period"])
-        .agg(total_quantity=("selling_quantity", "sum"))
+        .agg(total_quantity=("demand_quantity", "sum"))
         .reset_index()
         .pivot(index=["product_pn", "pt_code"], columns="period", values="total_quantity")
         .fillna(0)
@@ -116,7 +163,6 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
 
     if period == "Monthly":
         cols = pivot_df.columns[:2].tolist()
-        
         sorted_periods = (
             df_summary[["period", "year_month"]]
             .drop_duplicates()
@@ -124,9 +170,7 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
             .set_index("period")
             .index.tolist()
         )
-        
         pivot_df = pivot_df[cols + [p for p in sorted_periods if p in pivot_df.columns]]
-
 
     # ==== Filter Non-zero Rows ====
     if show_only_nonzero:

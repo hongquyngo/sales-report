@@ -1,3 +1,5 @@
+#data_loader.py
+
 import pandas as pd
 from sqlalchemy import text
 from db import get_db_engine
@@ -72,5 +74,12 @@ def load_outbound_demand_data():
     engine = get_db_engine()
     query = """
         SELECT * FROM prostechvn.outbound_oc_pending_delivery_view;
+    """
+    return pd.read_sql(text(query), engine)
+
+def load_customer_forecast_data():
+    engine = get_db_engine()
+    query = """
+        SELECT * FROM prostechvn.customer_demand_forecast_full_view;
     """
     return pd.read_sql(text(query), engine)
