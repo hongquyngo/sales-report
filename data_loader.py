@@ -3,7 +3,9 @@
 import pandas as pd
 from sqlalchemy import text
 from db import get_db_engine
+import streamlit as st
 
+@st.cache_data(ttl=1800)
 def load_data():
     """
     Load all required datasets from the database.
@@ -46,6 +48,8 @@ def load_data():
 
     return inv_df, inv_by_kpi_center_df, backlog_df, backlog_by_kpi_center_df
 
+
+@st.cache_data(ttl=1800)
 def load_sales_performance_data():
 
     engine = get_db_engine()
@@ -69,14 +73,14 @@ def load_sales_performance_data():
 
     return sales_report_by_salesperson_df, backlog_report_by_salesperson_df, kpi_by_salesperson_df
 
-
+@st.cache_data(ttl=1800)
 def load_outbound_demand_data():
     engine = get_db_engine()
     query = """
         SELECT * FROM prostechvn.outbound_oc_pending_delivery_view;
     """
     return pd.read_sql(text(query), engine)
-
+@st.cache_data(ttl=1800)
 def load_customer_forecast_data():
     engine = get_db_engine()
     query = """
