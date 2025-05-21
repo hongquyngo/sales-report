@@ -131,6 +131,7 @@ def show_supply_detail_table(df):
     df_disp = df.copy()
     df_disp["quantity"] = df_disp["quantity"].apply(lambda x: f"{x:,.0f}")
     df_disp["value_in_usd"] = df_disp["value_in_usd"].apply(lambda x: f"${x:,.2f}")
+    df_disp["date_ref"] = pd.to_datetime(df_disp["date_ref"], errors="coerce").dt.strftime("%Y-%m-%d")
 
     st.dataframe(df_disp[[
         "source_type", "pt_code", "product_name", "brand", "package_size", "standard_uom",
