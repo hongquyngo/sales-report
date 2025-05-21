@@ -75,7 +75,13 @@ def load_and_prepare_supply_data(supply_source, exclude_expired=True):
         df["pt_code"] = df["pt_code"].astype(str)
         df["product_name"] = df.get("product_name", "").astype(str)
         df["brand"] = df.get("brand", "").astype(str)
-        return df[["source_type", "pt_code", "product_name", "brand", "legal_entity", "date_ref", "quantity", "value_in_usd"]]
+        df["standard_uom"] = df.get("standard_uom", "")
+        df["package_size"] = df.get("package_size", "")
+        return df[[
+            "source_type", "pt_code", "product_name", "brand", "package_size", "standard_uom",
+            "legal_entity", "date_ref", "quantity", "value_in_usd"
+        ]]
+
 
     return pd.concat([standardize(df) for df in df_parts], ignore_index=True)
 
@@ -117,17 +123,20 @@ def apply_supply_filters(df):
 def show_supply_detail_table(df):
     st.markdown("### 📄 Supply Capability Detail")
 
-    # === Summary ===
     total_unique_products = df["pt_code"].nunique()
     total_value_usd = df["value_in_usd"].sum()
 
     st.markdown(f"🔢 Total Unique Products: **{int(total_unique_products):,}**  💵 Total Value (USD): **${total_value_usd:,.2f}**")
 
-    # === Table ===
     df_disp = df.copy()
     df_disp["quantity"] = df_disp["quantity"].apply(lambda x: f"{x:,.0f}")
     df_disp["value_in_usd"] = df_disp["value_in_usd"].apply(lambda x: f"${x:,.2f}")
-    st.dataframe(df_disp, use_container_width=True)
+
+    st.dataframe(df_disp[[
+        "source_type", "pt_code", "product_name", "brand", "package_size", "standard_uom",
+        "legal_entity", "date_ref", "quantity", "value_in_usd"
+    ]], use_container_width=True)
+
 
 
 def show_grouped_supply_summary(df, start_date, end_date):

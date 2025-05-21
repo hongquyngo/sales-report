@@ -58,10 +58,10 @@ def standardize_df(df, is_forecast):
     df['oc_date'] = pd.to_datetime(df.get('oc_date', pd.NaT))
 
     if is_forecast:
-        df['demand_quantity'] = pd.to_numeric(df['selling_quantity'], errors='coerce').fillna(0)
+        df['demand_quantity'] = pd.to_numeric(df['standard_quantity'], errors='coerce').fillna(0)
         df['value_in_usd'] = pd.to_numeric(df.get('total_amount_usd', 0), errors='coerce').fillna(0)
     else:
-        df['demand_quantity'] = pd.to_numeric(df['pending_delivery_quantity'], errors='coerce').fillna(0)
+        df['demand_quantity'] = pd.to_numeric(df['pending_standard_delivery_quantity'], errors='coerce').fillna(0)
         df['value_in_usd'] = pd.to_numeric(df.get('outstanding_amount_usd', 0), errors='coerce').fillna(0)
 
     df['product_pn'] = df['product_pn'].astype(str)
@@ -69,8 +69,11 @@ def standardize_df(df, is_forecast):
     df['brand'] = df['brand'].astype(str)
     df['legal_entity'] = df['legal_entity'].astype(str)
     df['customer'] = df['customer'].astype(str)
+    df['standard_uom'] = df.get('standard_uom', '')
+    df['package_size'] = df.get('package_size', '')
 
     return df
+
 
 
 def apply_outbound_filters(df):
@@ -117,15 +120,16 @@ def show_outbound_summary(filtered_df):
 
     st.markdown(f"🔢 Total Unique Products: **{int(total_unique_products):,}**  💵 Total Value (USD): **${total_value_usd:,.2f}**")
 
-    display_df = filtered_df[[
-        "source_type", "product_pn", "brand", "pt_code", "etd", "demand_quantity",
-        "value_in_usd", "customer", "legal_entity"
+    display_df = filtered_df[[ 
+        "source_type", "product_pn", "brand", "pt_code", "package_size", "standard_uom",
+        "etd", "demand_quantity", "value_in_usd", "customer", "legal_entity"
     ]].copy()
 
     display_df["demand_quantity"] = display_df["demand_quantity"].apply(lambda x: f"{x:,.0f}")
     display_df["value_in_usd"] = display_df["value_in_usd"].apply(lambda x: f"${x:,.2f}")
 
     st.dataframe(display_df, use_container_width=True)
+
 
 
 def show_grouped_demand_summary(filtered_df, start_date, end_date):
