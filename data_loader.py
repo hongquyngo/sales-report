@@ -73,6 +73,7 @@ def load_sales_performance_data():
 
     return sales_report_by_salesperson_df, backlog_report_by_salesperson_df, kpi_by_salesperson_df
 
+
 @st.cache_data(ttl=1800)
 def load_outbound_demand_data():
     engine = get_db_engine()
@@ -80,10 +81,34 @@ def load_outbound_demand_data():
         SELECT * FROM prostechvn.outbound_oc_pending_delivery_view;
     """
     return pd.read_sql(text(query), engine)
+
+
 @st.cache_data(ttl=1800)
 def load_customer_forecast_data():
     engine = get_db_engine()
     query = """
         SELECT * FROM prostechvn.customer_demand_forecast_full_view;
+    """
+    return pd.read_sql(text(query), engine)
+
+
+@st.cache_data(ttl=1800)
+def load_inventory_data():
+    engine = get_db_engine()
+    query = "SELECT * FROM prostechvn.inventory_detailed_view"
+    return pd.read_sql(text(query), engine)
+
+@st.cache_data(ttl=1800)
+def load_pending_can_data():
+    engine = get_db_engine()
+    query = "SELECT * FROM prostechvn.can_pending_stockin_view"
+    return pd.read_sql(text(query), engine)
+
+@st.cache_data(ttl=1800)
+def load_pending_po_data():
+    engine = get_db_engine()
+    query = """
+    SELECT * FROM prostechvn.purchase_order_full_view
+    WHERE pending_standard_arrival_quantity > 0
     """
     return pd.read_sql(text(query), engine)

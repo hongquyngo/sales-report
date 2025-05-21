@@ -9,12 +9,6 @@ from data_loader import load_outbound_demand_data, load_customer_forecast_data
 def show_outbound_demand_tab():
     st.subheader("📤 Outbound Demand by Period")
 
-    with st.expander("⚙️ Advanced Options", expanded=False):
-        if st.button("🔄 Clear Cached Data"):
-            st.cache_data.clear()
-            st.success("✅ Cache cleared. Please reload the data.")
-            return 
-
     output_source = select_data_source()
 
     df_all = load_and_prepare_data(output_source)
@@ -166,30 +160,12 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
         .reset_index()
     )
 
-    if period == "Weekly":
-        cols = pivot_df.columns[:2].tolist()
-        sorted_periods = sorted(pivot_df.columns[2:], key=lambda x: (
-            int(x.split(" - ")[1]),
-            int(x.split(" - ")[0].split(" ")[1])
-        ))
-        pivot_df = pivot_df[cols + sorted_periods]
-
-    if period == "Monthly":
-        cols = pivot_df.columns[:2].tolist()
-        sorted_periods = (
-            df_summary[["period", "year_month"]]
-            .drop_duplicates()
-            .sort_values("year_month")
-            .set_index("period")
-            .index.tolist()
-        )
-        pivot_df = pivot_df[cols + [p for p in sorted_periods if p in pivot_df.columns]]
+    pivot_df = sort_period_columns(pivot_df, period)
 
     if show_only_nonzero:
         pivot_df = pivot_df[pivot_df.iloc[:, 2:].sum(axis=1) > 0]
 
     pivot_df.iloc[:, 2:] = pivot_df.iloc[:, 2:].applymap(lambda x: f"{x:,.0f}")
-
     st.dataframe(pivot_df, use_container_width=True)
 
     # === Totals ===
@@ -207,10 +183,21 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
     pivot_final = pivot_final.reset_index().rename(columns={"index": "Metric"})
 
     for col in pivot_final.columns[1:]:
-        if "QUANTITY" in pivot_final["Metric"].values:
-            pivot_final.loc[pivot_final["Metric"] == "🔢 TOTAL QUANTITY", col] = f"{pivot_final.loc[pivot_final['Metric'] == '🔢 TOTAL QUANTITY', col].values[0]:,.0f}"
-        if "VALUE" in pivot_final["Metric"].values:
-            pivot_final.loc[pivot_final["Metric"] == "💵 TOTAL VALUE (USD)", col] = f"${pivot_final.loc[pivot_final['Metric'] == '💵 TOTAL VALUE (USD)', col].values[0]:,.2f}"
+        if "🔢 TOTAL QUANTITY" in pivot_final["Metric"].values:
+            pivot_final.loc[pivot_final["Metric"] == "🔢 TOTAL QUANTITY", col] = (
+                pivot_final.loc[pivot_final["Metric"] == "🔢 TOTAL QUANTITY", col]
+                .astype(float)
+                .map("{:,.0f}".format)
+            )
+        if "💵 TOTAL VALUE (USD)" in pivot_final["Metric"].values:
+            pivot_final.loc[pivot_final["Metric"] == "💵 TOTAL VALUE (USD)", col] = (
+                pivot_final.loc[pivot_final["Metric"] == "💵 TOTAL VALUE (USD)", col]
+                .astype(float)
+                .map("${:,.2f}".format)
+            )
+
+
+    pivot_final = sort_period_columns(pivot_final, period)
 
     st.markdown("🔢 Column Total (All Products)")
     st.dataframe(pivot_final, use_container_width=True)
@@ -223,6 +210,32 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
         file_name="grouped_outbound_demand.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
+
+def sort_period_columns(df, period_type):
+    cols = df.columns[:2].tolist() if df.columns[0] != "Metric" else df.columns[:1].tolist()
+
+    period_cols = df.columns[len(cols):]
+
+    if period_type == "Weekly":
+        sorted_periods = sorted(
+            period_cols,
+            key=lambda x: (
+                int(x.split(" - ")[1]),           # year
+                int(x.split(" - ")[0].split(" ")[1])  # week
+            )
+        )
+    elif period_type == "Monthly":
+        # Tên period dạng "Jan 2025", "Feb 2025", cần chuyển về datetime để sort
+        sorted_periods = sorted(
+            period_cols,
+            key=lambda x: pd.to_datetime("01 " + x, format="%d %b %Y")
+        )
+    else:
+        return df  # Daily không cần sắp xếp
+
+    return df[cols + sorted_periods]
 
 
 def convert_df_to_excel(df):
