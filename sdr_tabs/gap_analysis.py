@@ -206,7 +206,7 @@ def show_gap_analysis_tab(df_demand_all_sources, df_supply_all_sources):
     df_supply = apply_supply_filters(df_supply)
 
     col1, col2 = st.columns(2)
-    period_type = col1.selectbox("Group By Period", ["Daily", "Weekly", "Monthly"], index=1, key="gap_period_type")
+    period_type = col1.selectbox("Group By Period", ["Daily", "Weekly", "Monthly"], index=2, key="gap_period_type")
     show_shortage_only = col2.checkbox("🔎 Show only shortages", value=True, key="gap_shortage_checkbox")
 
     gap_df = calculate_gap_with_carry_forward(df_demand, df_supply, period_type)
