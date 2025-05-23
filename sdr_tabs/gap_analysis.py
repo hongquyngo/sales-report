@@ -158,7 +158,12 @@ def apply_demand_filters(df):
         df = df[df["customer"].isin(selected_customer)]
     if selected_pt:
         df = df[df["pt_code"].isin(selected_pt)]
-    df = df[(df["etd"].dt.date >= start_date) & (df["etd"].dt.date <= end_date)]
+
+    # Convert & Filter ETD safely
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+    df = df[(df["etd"].isna()) | ((df["etd"] >= start_date) & (df["etd"] <= end_date))]
+
     return df
 
 

@@ -94,9 +94,11 @@ def apply_outbound_filters(df):
         with col4:
             selected_brand = st.multiselect("Brand", df["brand"].dropna().unique())
         with col5:
-            start_date = st.date_input("From Date (ETD)", df["etd"].min().date())
+            default_start = df["etd"].min().date() if pd.notnull(df["etd"].min()) else datetime.today().date()
+            start_date = st.date_input("From Date (ETD)", default_start)
         with col6:
-            end_date = st.date_input("To Date (ETD)", df["etd"].max().date())
+            default_end = df["etd"].max().date() if pd.notnull(df["etd"].max()) else datetime.today().date()
+            end_date = st.date_input("To Date (ETD)", default_end)
 
     filtered_df = df.copy()
     if selected_entity:
@@ -107,13 +109,19 @@ def apply_outbound_filters(df):
         filtered_df = filtered_df[filtered_df["pt_code"].isin(selected_product)]
     if selected_brand:
         filtered_df = filtered_df[filtered_df["brand"].isin(selected_brand)]
-    if start_date and end_date:
-        filtered_df = filtered_df[
-            (filtered_df["etd"].dt.date >= start_date) &
-            (filtered_df["etd"].dt.date <= end_date)
-        ]
+
+    # ✅ Convert to Timestamp for compatibility
+    start_ts = pd.to_datetime(start_date)
+    end_ts = pd.to_datetime(end_date)
+
+    # ✅ Include rows with null ETD to avoid filtering them out
+    filtered_df = filtered_df[
+        filtered_df["etd"].isna() |
+        ((filtered_df["etd"] >= start_ts) & (filtered_df["etd"] <= end_ts))
+    ]
 
     return filtered_df, start_date, end_date
+
 
 
 # === Render outbound demand table + summary statistics ===
@@ -228,18 +236,27 @@ def sort_period_columns(df, period_type):
     cols = df.columns[:2].tolist() if df.columns[0] != "Metric" else df.columns[:1].tolist()
     period_cols = df.columns[len(cols):]
 
+    # ⚠️ Lọc bỏ các cột có tên rác (NA, nan, None)
+    period_cols = [p for p in period_cols if isinstance(p, str) and pd.notna(p) and p.strip() != ""]
+
     if period_type == "Weekly":
-        sorted_periods = sorted(
-            period_cols,
-            key=lambda x: (int(x.split(" - ")[1]), int(x.split(" - ")[0].split(" ")[1]))
-        )
+        def safe_parse_week(x):
+            try:
+                week = int(x.split(" - ")[0].replace("Week", "").strip())
+                year = int(x.split(" - ")[1].strip())
+                return (year, week)
+            except:
+                return (9999, 99)
+        sorted_periods = sorted(period_cols, key=safe_parse_week)
+
     elif period_type == "Monthly":
         sorted_periods = sorted(
             period_cols,
-            key=lambda x: pd.to_datetime("01 " + x, format="%d %b %Y")
+            key=lambda x: pd.to_datetime("01 " + x, format="%d %b %Y", errors="coerce") or pd.Timestamp.max
         )
     else:
-        return df
+        # Daily or default: sort alphabetically (safe fallback)
+        sorted_periods = sorted(period_cols)
 
     return df[cols + sorted_periods]
 
