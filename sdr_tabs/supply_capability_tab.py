@@ -34,6 +34,7 @@ def select_supply_source():
     )
 
 
+
 def load_and_prepare_supply_data(supply_source, exclude_expired=True):
     today = pd.to_datetime("today").normalize()
     df_parts = []
@@ -41,6 +42,7 @@ def load_and_prepare_supply_data(supply_source, exclude_expired=True):
     if supply_source in ["Inventory Only", "All"]:
         inv_df = load_inventory_data()
         inv_df["source_type"] = "Inventory"
+        inv_df["supply_number"] = inv_df["inventory_history_id"].astype(str)
         inv_df["date_ref"] = today
         inv_df["quantity"] = pd.to_numeric(inv_df["remaining_quantity"], errors="coerce").fillna(0)
         inv_df["value_in_usd"] = pd.to_numeric(inv_df["inventory_value_usd"], errors="coerce").fillna(0)
@@ -53,6 +55,7 @@ def load_and_prepare_supply_data(supply_source, exclude_expired=True):
     if supply_source in ["Pending CAN Only", "All"]:
         can_df = load_pending_can_data()
         can_df["source_type"] = "Pending CAN"
+        can_df["supply_number"] = can_df["arrival_note_number"].astype(str)
         can_df["date_ref"] = pd.to_datetime(can_df["arrival_date"], errors="coerce")
         can_df["quantity"] = pd.to_numeric(can_df["pending_quantity"], errors="coerce").fillna(0)
         can_df["value_in_usd"] = pd.to_numeric(can_df["pending_value_usd"], errors="coerce").fillna(0)
@@ -62,6 +65,7 @@ def load_and_prepare_supply_data(supply_source, exclude_expired=True):
     if supply_source in ["Pending PO Only", "All"]:
         po_df = load_pending_po_data()
         po_df["source_type"] = "Pending PO"
+        po_df["supply_number"] = po_df["po_number"].astype(str)
         po_df["date_ref"] = pd.to_datetime(po_df["cargo_ready_date"], errors="coerce")
         po_df["quantity"] = pd.to_numeric(po_df["pending_standard_arrival_quantity"], errors="coerce").fillna(0)
         po_df["value_in_usd"] = pd.to_numeric(po_df["outstanding_arrival_amount_usd"], errors="coerce").fillna(0)
@@ -78,14 +82,12 @@ def load_and_prepare_supply_data(supply_source, exclude_expired=True):
         df["standard_uom"] = df.get("standard_uom", "")
         df["package_size"] = df.get("package_size", "")
         return df[[
-            "source_type", "pt_code", "product_name", "brand", "package_size", "standard_uom",
+            "source_type", "supply_number", "pt_code", "product_name", "brand", "package_size", "standard_uom",
             "legal_entity", "date_ref", "quantity", "value_in_usd"
         ]]
 
 
     return pd.concat([standardize(df) for df in df_parts], ignore_index=True)
-
-
 
 
 def apply_supply_filters(df):
@@ -133,9 +135,11 @@ def show_supply_detail_table(df):
     df_disp["value_in_usd"] = df_disp["value_in_usd"].apply(lambda x: f"${x:,.2f}")
     df_disp["date_ref"] = pd.to_datetime(df_disp["date_ref"], errors="coerce").dt.strftime("%Y-%m-%d")
 
+    df_disp.rename(columns={"quantity": "supply_quantity"}, inplace=True)
+
     st.dataframe(df_disp[[
-        "source_type", "pt_code", "product_name", "brand", "package_size", "standard_uom",
-        "legal_entity", "date_ref", "quantity", "value_in_usd"
+        "pt_code","product_name", "brand", "package_size", "standard_uom","date_ref","supply_quantity", "value_in_usd", 
+        "source_type", "supply_number","legal_entity"
     ]], use_container_width=True)
 
 
@@ -146,7 +150,7 @@ def show_grouped_supply_summary(df, start_date, end_date):
 
     col1, col2 = st.columns(2)
     with col1:
-        period = st.selectbox("Group by Period", ["Daily", "Weekly", "Monthly"])
+        period = st.selectbox("Group by Period", ["Daily", "Weekly", "Monthly"], index=1)
     with col2:
         show_only_nonzero = st.checkbox("Show only products with quantity > 0", value=True, key="supply_show_nonzero")
 

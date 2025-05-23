@@ -30,7 +30,6 @@ def select_data_source():
     )
 
 
-# === Load and standardize data for both OC and Forecast ===
 def load_and_prepare_data(source):
     df_oc, df_fc = pd.DataFrame(), pd.DataFrame()
 
@@ -63,9 +62,11 @@ def standardize_df(df, is_forecast):
     if is_forecast:
         df['demand_quantity'] = pd.to_numeric(df['standard_quantity'], errors='coerce').fillna(0)
         df['value_in_usd'] = pd.to_numeric(df.get('total_amount_usd', 0), errors='coerce').fillna(0)
+        df['demand_number'] = df.get('forecast_number', '')
     else:
         df['demand_quantity'] = pd.to_numeric(df['pending_standard_delivery_quantity'], errors='coerce').fillna(0)
         df['value_in_usd'] = pd.to_numeric(df.get('outstanding_amount_usd', 0), errors='coerce').fillna(0)
+        df['demand_number'] = df.get('oc_number', '')
 
     df['product_name'] = df['product_name'].astype(str)
     df['pt_code'] = df['pt_code'].astype(str)
@@ -125,8 +126,8 @@ def show_outbound_summary(filtered_df):
     st.markdown(f"🔢 Total Unique Products: **{int(total_unique_products):,}**  💵 Total Value (USD): **${total_value_usd:,.2f}**")
 
     display_df = filtered_df[[ 
-        "source_type", "product_name", "brand", "pt_code", "package_size", "standard_uom",
-        "etd", "demand_quantity", "value_in_usd", "customer", "legal_entity"
+        "pt_code","product_name", "brand",  "package_size", "standard_uom",
+        "etd", "demand_quantity", "value_in_usd", "source_type","demand_number", "customer", "legal_entity"
     ]].copy()
 
     display_df["demand_quantity"] = display_df["demand_quantity"].apply(lambda x: f"{x:,.0f}")
@@ -143,7 +144,7 @@ def show_grouped_demand_summary(filtered_df, start_date, end_date):
 
     col_period, col_filter = st.columns(2)
     with col_period:
-        period = st.selectbox("Group By Period", ["Daily", "Weekly", "Monthly"])
+        period = st.selectbox("Group By Period", ["Daily", "Weekly", "Monthly"], index=1)  # Default to "Weekly"
     with col_filter:
         show_only_nonzero = st.checkbox("Show only products with quantity > 0", value=True)
 
